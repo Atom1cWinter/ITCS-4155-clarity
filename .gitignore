@@ -13,7 +13,8 @@ dist-ssr
 *.local
 
 # Environment variables
-.env.local
+# Note: .env.local is included for private class project team collaboration
+# WARNING: Remove .env.local from tracking before making repository public!
 .env.production
 
 # Editor directories and files

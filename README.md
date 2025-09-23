@@ -111,6 +111,19 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 ```
 
+> **⚠️ SECURITY NOTICE**: The `.env.local` file is included in this repository for private class project collaboration. **If this repository becomes public, immediately add `.env.local` to `.gitignore` and remove it from version control!**
+
+## 🔒 Security Best Practices
+
+- **Private Repository**: Environment variables are shared for team collaboration
+- **Before Going Public**: Remove `.env.local` from tracking with:
+  ```bash
+  echo ".env.local" >> .gitignore
+  git rm --cached .env.local
+  git commit -m "Remove environment file from tracking"
+  ```
+- **Production**: Use proper environment variable management in deployment
+
 ## 📚 Documentation
 
 - [Firebase Setup Guide](./docs/FIREBASE_SETUP.md) - Complete Firebase configuration steps
