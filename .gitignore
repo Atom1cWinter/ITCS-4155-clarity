@@ -10,7 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
+# Only ignore Vite's generated .local files, not our .env.local
+vite.config.js.local
+vite.config.ts.local
 
 # Environment variables
 # Note: .env.local is included for private class project team collaboration
