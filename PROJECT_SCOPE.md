@@ -24,4 +24,4 @@
 - Code fits in a single Vite app (no server)
 
 **Team:**
-- Bryan Witherspoon (owner). Teammates: <names>. Keep scope student-level.
+- Bryan Witherspoon (owner). Teammates: Cameron Dingle, Jonathan Pina Elacio, Sam Phillips, Sebastian Lopez-Gallardo. Keep scope student-level.
