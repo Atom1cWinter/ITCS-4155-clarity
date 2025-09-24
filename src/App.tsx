@@ -1,11 +1,8 @@
 import './App.css'
+import AuthPage from './pages/AuthPage'
 
 function App() {
-  return (
-    <>
-      <h1 className="text-4xl font-bold text-purple-500">Hello Tailwind!</h1>
-    </>
-  )
+  return <AuthPage />
 }
 
 export default App
