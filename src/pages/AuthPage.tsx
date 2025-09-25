@@ -1,4 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 // Define the two modes our auth page can be in - login or register
 type AuthMode = 'login' | 'register';
@@ -17,6 +25,8 @@ type AuthMode = 'login' | 'register';
  * - Google sign-in option (UI only for now)
  */
 export default function AuthPage() {
+  const navigate = useNavigate();
+  
   // State management for the component
   const [mode, setMode] = useState<AuthMode>('login'); // Controls whether we show login or register form
   const [email, setEmail] = useState(''); // User's email input
@@ -24,14 +34,39 @@ export default function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState(''); // Password confirmation (register mode only)
   const [isLoading, setIsLoading] = useState(false); // Shows loading state during form submission
   const [passwordError, setPasswordError] = useState(''); // Error message for password validation
+  const [authError, setAuthError] = useState(''); // Error message for Firebase auth errors
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // Shows registration success modal
+  const [countdown, setCountdown] = useState(3); // Countdown timer for success modal
+
+  /**
+   * Countdown effect for success modal
+   */
+  useEffect(() => {
+    if (showSuccessModal && countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (showSuccessModal && countdown === 0) {
+      // Redirect to login mode after countdown
+      setShowSuccessModal(false);
+      setMode('login');
+      setCountdown(3);
+      // Clear form data
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+    }
+  }, [showSuccessModal, countdown]);
 
   /**
    * Handle form submission for both login and register
-   * Currently just validates and logs data - Firebase integration comes next
+   * Now integrated with Firebase authentication
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); // Prevent default form submission
     setPasswordError(''); // Clear any existing errors
+    setAuthError(''); // Clear any existing auth errors
     
     // Validate passwords match in register mode only
     if (mode === 'register' && password !== confirmPassword) {
@@ -44,14 +79,75 @@ export default function AuthPage() {
 
     setIsLoading(true); // Show loading state
     
-    // TODO: This is where we'll add Firebase authentication
-    // For now, just log the data to console for testing
-    console.log({ mode, email });
-    
-    // Simulate API call delay (remove this when we add Firebase)
-    setTimeout(() => {
+    try {
+      if (mode === 'login') {
+        // Sign in with email and password
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('Login successful:', userCredential.user);
+        // Redirect to notes page after successful login
+        navigate('/notes');
+      } else {
+        // Create new user with email and password
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('Registration successful:', userCredential.user);
+        // Show success modal for registration
+        setShowSuccessModal(true);
+        setCountdown(3);
+      }
+    } catch (error) {
+      // Handle Firebase auth errors
+      console.error('Authentication error:', error);
+      const errorCode = (error as { code?: string })?.code || 'unknown';
+      setAuthError(getFirebaseErrorMessage(errorCode));
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
+  };
+
+  /**
+   * Handle Google sign-in
+   */
+  const handleGoogleSignIn = async () => {
+    setAuthError(''); // Clear any existing auth errors
+    setIsLoading(true);
+    
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      console.log('Google sign-in successful:', userCredential.user);
+      // Redirect to notes page after successful Google sign-in
+      navigate('/notes');
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      const errorCode = (error as { code?: string })?.code || 'unknown';
+      setAuthError(getFirebaseErrorMessage(errorCode));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Convert Firebase error codes to user-friendly messages
+   */
+  const getFirebaseErrorMessage = (errorCode: string): string => {
+    switch (errorCode) {
+      case 'auth/user-not-found':
+        return 'No account found with this email address.';
+      case 'auth/wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'auth/email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'auth/weak-password':
+        return 'Password should be at least 6 characters long.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/popup-closed-by-user':
+        return 'Sign-in was cancelled.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your connection.';
+      default:
+        return 'Authentication failed. Please try again.';
+    }
   };
 
   /**
@@ -62,6 +158,7 @@ export default function AuthPage() {
     setMode(mode === 'login' ? 'register' : 'login');
     // Reset all form state when switching modes
     setPasswordError('');
+    setAuthError('');
     setEmail('');
     setPassword('');
     setConfirmPassword('');
@@ -128,10 +225,15 @@ export default function AuthPage() {
               )}
             </div>
 
-            {/* Error Message - Shows when passwords don't match */}
+            {/* Error Messages - Shows validation and auth errors */}
             {passwordError && (
               <p id="password-error" className="text-sm text-red-400 text-center">
                 {passwordError}
+              </p>
+            )}
+            {authError && (
+              <p className="text-sm text-red-400 text-center">
+                {authError}
               </p>
             )}
 
@@ -174,12 +276,18 @@ export default function AuthPage() {
 
           {/* Google Sign-In Button - Uses gradient border technique */}
           {/* Outer div creates gradient border, inner div is the actual button */}
-          <button className="w-full h-12 rounded-xl bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] p-[1px] hover:brightness-110 transition group">
+          <button 
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] p-[1px] hover:brightness-110 transition group disabled:opacity-70 disabled:cursor-not-allowed"
+          >
             <div className="w-full h-full rounded-xl bg-[#1E1E1E] hover:bg-white/5 transition flex items-center justify-center gap-3">
               <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center">
                 <span className="text-xs font-bold text-black">G</span>
               </div>
-              <span className="text-white">Sign in with Google</span>
+              <span className="text-white">
+                {isLoading ? 'Please wait...' : 'Sign in with Google'}
+              </span>
             </div>
           </button>
         </div>
@@ -197,6 +305,31 @@ export default function AuthPage() {
           <span>Copyright © Clarity 2025</span>
         </div>
       </div>
+
+      {/* Success Modal - Shows after successful registration */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-6">
+          <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full text-center backdrop-blur">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">✓</span>
+              </div>
+              <h2 className="text-2xl font-semibold text-white mb-2">
+                Sign up successful!
+              </h2>
+              <p className="text-white/60">
+                Your account has been created successfully.
+              </p>
+            </div>
+            <div className="text-white/80">
+              <p className="mb-2">Redirecting to login in</p>
+              <div className="text-3xl font-bold bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] bg-clip-text text-transparent">
+                {countdown}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
