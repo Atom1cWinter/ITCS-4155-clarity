@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"; // UPDATED
+import logo from '../assets/logo.png';
 
 interface NavbarProps {
     appName?: string;
@@ -12,7 +13,7 @@ const NavBar: React.FC<NavbarProps> = ({ }) => {
 
                 {/* Logo : will add logo later */}
                 <Link to="/notes" className="text-2xl font-extrabold tracking-wide text-black"> {/* UPDATED */}
-                    Clarity
+                    <img src={logo} alt="Logo" height={150} width={125} />
                 </Link>
 
                 {/* Center Navigation Links */}
