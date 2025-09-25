@@ -27,6 +27,7 @@ src/
 │   └── FlashcardsPage.tsx  # Flashcard creation and study
 ├── components/         # Reusable UI components
 │   └── Button.tsx      # Basic button component
+│   └── NavBar.tsx      # Basic navigation component
 ├── lib/               # Firebase configuration
 │   └── firebase.ts    # Firebase initialization
 ├── App.tsx            # Main app component
