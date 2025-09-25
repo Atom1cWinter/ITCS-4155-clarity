@@ -29,3 +29,7 @@ vite.config.ts.local
 *.njsproj
 *.sln
 *.sw?
+
+# Python virtual environment
+venv/
+.venv/
