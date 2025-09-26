@@ -73,7 +73,8 @@ docs/
    - Go to https://platform.openai.com/api-keys
    - Generate a new secret key
    - Add the following line to your '.env.local' file:
-   ```VITE_OPENAI_API_KEY=your_openai_secret_api_key
+   ```env
+   VITE_OPENAI_API_KEY=your_openai_secret_api_key
    ```
 
 5. Start the development server:
