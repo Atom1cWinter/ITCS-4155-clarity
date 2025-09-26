@@ -18,6 +18,7 @@ vite.config.ts.local
 # Note: .env.local is included for private class project team collaboration
 # WARNING: Remove .env.local from tracking before making repository public!
 .env.production
+.env.local
 
 # Editor directories and files
 .vscode/*
