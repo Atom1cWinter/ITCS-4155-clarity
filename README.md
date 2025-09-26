@@ -69,7 +69,14 @@ docs/
    VITE_FIREBASE_APP_ID=your_app_id
    ```
 
-4. Start the development server:
+4. Set up OpenAI:
+   - Go to https://platform.openai.com/api-keys
+   - Generate a new secret key
+   - Add the following line to your '.env.local' file:
+   ```VITE_OPENAI_API_KEY=your_openai_secret_api_key
+   ```
+
+5. Start the development server:
    ```bash
    npm run dev
    ```
