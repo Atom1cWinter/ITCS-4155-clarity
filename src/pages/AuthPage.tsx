@@ -60,20 +60,59 @@ export default function AuthPage() {
   }, [showSuccessModal, countdown]);
 
   /**
+   * Client-side validation before Firebase submission
+   */
+  const validateForm = (): boolean => {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      setAuthError('Email address is required.');
+      return false;
+    }
+    if (!emailRegex.test(email)) {
+      setAuthError('Please enter a valid email address (e.g., example@email.com).');
+      return false;
+    }
+
+    // Password validation
+    if (!password.trim()) {
+      setAuthError('Password is required.');
+      return false;
+    }
+    if (password.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return false;
+    }
+
+    // Registration-specific validation
+    if (mode === 'register') {
+      if (!confirmPassword.trim()) {
+        setPasswordError('Please confirm your password.');
+        return false;
+      }
+      if (password !== confirmPassword) {
+        setPasswordError('Passwords do not match. Please make sure both passwords are identical.');
+        // Focus the confirm password field for better UX
+        const confirmField = document.querySelector('input[name="confirmPassword"]') as HTMLInputElement;
+        confirmField?.focus();
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  /**
    * Handle form submission for both login and register
-   * Now integrated with Firebase authentication
+   * Now integrated with Firebase authentication and comprehensive validation
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); // Prevent default form submission
     setPasswordError(''); // Clear any existing errors
     setAuthError(''); // Clear any existing auth errors
     
-    // Validate passwords match in register mode only
-    if (mode === 'register' && password !== confirmPassword) {
-      setPasswordError('Passwords do not match');
-      // Focus the confirm password field for better UX
-      const confirmField = document.querySelector('input[name="confirmPassword"]') as HTMLInputElement;
-      confirmField?.focus();
+    // Run client-side validation first
+    if (!validateForm()) {
       return;
     }
 
@@ -128,25 +167,61 @@ export default function AuthPage() {
 
   /**
    * Convert Firebase error codes to user-friendly messages
+   * Comprehensive error handling for all common Firebase Auth errors
    */
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
+      // Login specific errors
       case 'auth/user-not-found':
-        return 'No account found with this email address.';
+        return 'No account found with this email address. Please check your email or register for a new account.';
       case 'auth/wrong-password':
-        return 'Incorrect password. Please try again.';
+        return 'Incorrect password. Please try again or use "Forgot Password" if you need help.';
+      case 'auth/invalid-credential':
+        return 'Invalid email or password. Please check your credentials and try again.';
+      
+      // Registration specific errors
       case 'auth/email-already-in-use':
-        return 'An account with this email already exists.';
+        return 'An account with this email already exists. Please login instead or use a different email.';
       case 'auth/weak-password':
-        return 'Password should be at least 6 characters long.';
+        return 'Password is too weak. Please use at least 6 characters with a mix of letters and numbers.';
+      
+      // Email format errors
       case 'auth/invalid-email':
-        return 'Please enter a valid email address.';
+        return 'Please enter a valid email address (e.g., example@email.com).';
+      case 'auth/missing-email':
+        return 'Email address is required. Please enter your email.';
+      
+      // Password errors
+      case 'auth/missing-password':
+        return 'Password is required. Please enter your password.';
+      case 'auth/too-many-requests':
+        return 'Too many failed login attempts. Please wait a few minutes before trying again.';
+      
+      // Account status errors
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support for assistance.';
+      case 'auth/operation-not-allowed':
+        return 'Email/password accounts are not enabled. Please contact support.';
+      
+      // Google sign-in errors
       case 'auth/popup-closed-by-user':
-        return 'Sign-in was cancelled.';
+        return 'Sign-in was cancelled. Please try again to continue with Google.';
+      case 'auth/popup-blocked':
+        return 'Pop-up was blocked by your browser. Please allow pop-ups and try again.';
+      case 'auth/cancelled-popup-request':
+        return 'Sign-in request was cancelled. Please try again.';
+      
+      // Network and system errors
       case 'auth/network-request-failed':
-        return 'Network error. Please check your connection.';
+        return 'Network error. Please check your internet connection and try again.';
+      case 'auth/timeout':
+        return 'Request timed out. Please check your connection and try again.';
+      case 'auth/internal-error':
+        return 'An internal error occurred. Please try again in a moment.';
+      
+      // Generic fallback
       default:
-        return 'Authentication failed. Please try again.';
+        return `Authentication failed (${errorCode}). Please try again or contact support if the problem persists.`;
     }
   };
 
@@ -191,9 +266,17 @@ export default function AuthPage() {
                 placeholder="Email"
                 aria-label="Email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  // Clear auth error when user starts typing
+                  if (authError) setAuthError('');
+                }}
                 required
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                className={`w-full h-12 rounded-xl bg-white/5 border px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 transition-colors ${
+                  authError && !email.trim() 
+                    ? 'border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10 focus:ring-white/20'
+                }`}
               />
               
               {/* Password Input - Always visible in both modes */}
@@ -203,9 +286,18 @@ export default function AuthPage() {
                 placeholder="Password"
                 aria-label="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  // Clear errors when user starts typing
+                  if (authError) setAuthError('');
+                  if (passwordError) setPasswordError('');
+                }}
                 required
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                className={`w-full h-12 rounded-xl bg-white/5 border px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 transition-colors ${
+                  (authError && !password.trim()) || passwordError
+                    ? 'border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10 focus:ring-white/20'
+                }`}
               />
               
               {/* Confirm Password Input - Only shown in register mode */}
@@ -218,23 +310,37 @@ export default function AuthPage() {
                   aria-invalid={passwordError ? 'true' : 'false'}
                   aria-describedby={passwordError ? 'password-error' : undefined}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    // Clear password error when user starts typing
+                    if (passwordError) setPasswordError('');
+                  }}
                   required
-                  className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                  className={`w-full h-12 rounded-xl bg-white/5 border px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 transition-colors ${
+                    passwordError
+                      ? 'border-red-500/50 focus:ring-red-500/20' 
+                      : 'border-white/10 focus:ring-white/20'
+                  }`}
                 />
               )}
             </div>
 
-            {/* Error Messages - Shows validation and auth errors */}
+            {/* Error Messages - Enhanced styling for better visibility */}
             {passwordError && (
-              <p id="password-error" className="text-sm text-red-400 text-center">
-                {passwordError}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 backdrop-blur">
+                <p id="password-error" className="text-sm text-red-300 text-center flex items-center justify-center gap-2">
+                  <span className="text-red-400">⚠️</span>
+                  {passwordError}
+                </p>
+              </div>
             )}
             {authError && (
-              <p className="text-sm text-red-400 text-center">
-                {authError}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 backdrop-blur">
+                <p className="text-sm text-red-300 text-center flex items-center justify-center gap-2">
+                  <span className="text-red-400">⚠️</span>
+                  {authError}
+                </p>
+              </div>
             )}
 
             {/* Main Submit Button - Purple to yellow gradient */}
