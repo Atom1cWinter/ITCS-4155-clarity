@@ -1,39 +1,27 @@
-import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import AmbientBackground from '../components/AmbientBackground';
 
 export default function FlashcardsPage() {
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      console.log('Logout successful');
-      navigate('/auth');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#1E1E1E] grid place-items-center px-6">
-      <div className="text-center">
-        <h1 className="text-4xl font-semibold text-white mb-4">Flashcards</h1>
-        <p className="text-white/60 text-lg">
-          Welcome to your flashcards page! This feature is coming soon.
-        </p>
-        <div className="mt-8 p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur max-w-md">
-          <p className="text-white/80 text-sm mb-6">
-            Here you'll be able to create, study, and manage your flashcards for effective learning.
+    <AmbientBackground>
+      <div className="w-full h-full grid place-items-center px-6">
+        <div className="text-center max-w-2xl">
+          <h1 className="hero-title mb-4">Flashcards</h1>
+          <p className="hero-subtitle mb-8">
+            Create, study, and manage your flashcards for effective learning
           </p>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-2 bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] text-black font-semibold rounded-xl hover:brightness-110 transition"
-          >
-            Logout
-          </button>
+          <div className="glass-surface p-8">
+            <div className="inline-flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full text-sm text-muted mb-6">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Coming Soon</span>
+            </div>
+            <p className="text-muted text-sm">
+              This feature is currently under development. Soon you'll be able to transform your notes into interactive flashcards.
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </AmbientBackground>
   );
 }

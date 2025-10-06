@@ -1,7 +1,96 @@
 /* Tailwind CSS v4 */
 @import "tailwindcss";
 
-:root { color-scheme: dark; }
-html, body, #root { height: 100%; }
+/* Design Tokens */
+@layer base {
+  :root {
+    color-scheme: dark;
+    
+    /* Color Palette */
+    --color-base-bg: #0B0F1A;
+    --color-base-bg-light: #0F1625;
+    --color-primary-blue: #3B82F6;
+    --color-brand-blue: #2F81AE;
+    --color-accent-violet: #5C3EBC;
+    --color-text-primary: #E9EEF8;
+    --color-text-muted: #A9B3D1;
+    --color-text-subtle: #6B7B99;
+  }
+  
+  html, body, #root {
+    height: 100%;
+  }
 
-body { @apply bg-[#1E1E1E] text-white antialiased; }
+  body {
+    @apply antialiased;
+    background-color: var(--color-base-bg);
+    color: var(--color-text-primary);
+  }
+}
+
+/* Glass Surface Utilities */
+@layer components {
+  .glass-surface {
+    @apply backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl;
+  }
+  
+  .glass-surface-strong {
+    @apply backdrop-blur-lg bg-white/8 border border-white/15 rounded-2xl;
+  }
+  
+  /* Nav Link Style */
+  .nav-link {
+    @apply transition-colors duration-200 font-medium;
+    color: var(--color-text-muted);
+  }
+  
+  .nav-link:hover {
+    color: var(--color-text-primary);
+  }
+  
+  /* Upload Pill Button */
+  .btn-upload-pill {
+    @apply px-5 py-2 rounded-full font-medium transition-all duration-200;
+    background: var(--color-primary-blue);
+    color: var(--color-text-primary);
+  }
+  
+  .btn-upload-pill:hover {
+    @apply brightness-110;
+  }
+  
+  /* Hero Title */
+  .hero-title {
+    @apply text-5xl md:text-6xl font-bold tracking-tight;
+    color: var(--color-text-primary);
+  }
+  
+  /* Hero Subtitle */
+  .hero-subtitle {
+    color: var(--color-text-muted);
+    @apply text-lg md:text-xl;
+  }
+}
+
+/* Utility Classes */
+@layer utilities {
+  .text-primary {
+    color: var(--color-text-primary);
+  }
+  
+  .text-muted {
+    color: var(--color-text-muted);
+  }
+  
+  .text-subtle {
+    color: var(--color-text-subtle);
+  }
+  
+  .bg-base {
+    background-color: var(--color-base-bg);
+  }
+  
+  .bg-base-light {
+    background-color: var(--color-base-bg-light);
+  }
+}

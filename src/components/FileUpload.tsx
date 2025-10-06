@@ -88,7 +88,8 @@ export default function FileUpload({
         
         <button
           onClick={onButtonClick}
-          className="px-6 py-2 bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] text-black font-semibold rounded-xl hover:brightness-110 transition"
+          className="px-6 py-2 text-white font-semibold rounded-xl hover:brightness-110 transition-all"
+          style={{ backgroundColor: '#3B82F6' }}
         >
           Choose File
         </button>
