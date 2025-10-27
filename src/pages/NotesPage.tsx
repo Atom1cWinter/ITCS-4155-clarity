@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import AmbientBackground from '../components/AmbientBackground';
 import TextSummaryService from '../lib/openai/TextSummaryService';
 import FileUpload from '../components/FileUpload';
 import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
+import SummaryService from '../lib/firebase/SummaryService';
+import SummaryHistory from '../components/SummaryHistory';
+import type { Summary } from '../lib/firebase/SummaryService';
+import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
+import { auth } from '../lib/firebase';
 
 export default function NotesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -12,9 +18,28 @@ export default function NotesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useFileUpload, setUseFileUpload] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
+
+  // Get current user on mount
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setUserId(user.uid);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleSelectPreviousSummary = (prevSummary: Summary) => {
+    setSummary(prevSummary.summaryText);
+    setSelectedFile(null);
+    setInputText('');
+    setError(null);
+  };
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -28,6 +53,11 @@ export default function NotesPage() {
       return;
     }
 
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
     console.log('Starting file summarization for:', selectedFile.name, selectedFile.type, selectedFile.size); // DEBUG
 
     setIsLoading(true);
@@ -37,6 +67,31 @@ export default function NotesPage() {
       const result = await TextSummaryService.summarizeFromFile(selectedFile);
       console.log('File summary result:', result); // DEBUG
       setSummary(result);
+
+      // Save summary to Firestore
+      try {
+        const fileHash = await generateFileHash(selectedFile);
+        console.log('Attempting to save summary for:', selectedFile.name, 'userId:', userId);
+        await SummaryService.saveSummary({
+          userId,
+          fileName: selectedFile.name,
+          fileHash,
+          fileSize: selectedFile.size,
+          fileType: selectedFile.type || 'unknown',
+          summaryText: result,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        console.log('Summary saved to Firestore successfully');
+        // Trigger refresh of summary history
+        setRefreshTrigger(prev => prev + 1);
+      } catch (dbError) {
+        console.error('Error saving summary to Firestore:', dbError);
+        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        console.error('Detailed error:', errorMsg);
+        // Show error to user so they know to check Firestore
+        setError(`Note: Summary generated but storage failed. Check browser console: ${errorMsg}`);
+      }
     } catch (err) {
       console.error('Detailed file summary error:', err); // DEBUG
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -52,12 +107,42 @@ export default function NotesPage() {
       return;
     }
 
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       const result = await TextSummaryService.summarizeText(inputText);
       setSummary(result);
+
+      // Save summary to Firestore
+      try {
+        const textHash = await generateTextHash(inputText);
+        console.log('Attempting to save text summary for userId:', userId);
+        await SummaryService.saveSummary({
+          userId,
+          fileName: `Text Summary - ${new Date().toLocaleString()}`,
+          fileHash: textHash,
+          fileSize: inputText.length,
+          fileType: 'text',
+          summaryText: result,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        console.log('Text summary saved to Firestore successfully');
+        // Trigger refresh of summary history
+        setRefreshTrigger(prev => prev + 1);
+      } catch (dbError) {
+        console.error('Error saving summary to Firestore:', dbError);
+        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        console.error('Detailed error:', errorMsg);
+        // Show error to user so they know to check Firestore
+        setError(`Note: Summary generated but storage failed. Check browser console: ${errorMsg}`);
+      }
     } catch (err) {
       console.error('Text summary error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -99,6 +184,11 @@ export default function NotesPage() {
 
         {/* Main Content */}
         <div className="max-w-4xl mx-auto space-y-6">
+
+        {/* Previous Summaries History */}
+        {userId && (
+          <SummaryHistory userId={userId} onSelectSummary={handleSelectPreviousSummary} refreshTrigger={refreshTrigger} />
+        )}
 
         {/* Mode Toggle */}
         <div className="glass-surface p-6 mb-6">
@@ -171,8 +261,24 @@ export default function NotesPage() {
         {summary && (
           <div className="glass-surface p-6">
             <h2 className="text-2xl font-semibold text-primary mb-4">Summary</h2>
-            <div className="bg-white/5 rounded-lg p-4">
-              <p className="text-muted whitespace-pre-wrap">{summary}</p>
+            <div className="bg-white/5 rounded-lg p-4 markdown-content">
+              <ReactMarkdown
+                components={{
+                  h1: (props) => <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />,
+                  h2: (props) => <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />,
+                  h3: (props) => <h3 className="text-xl font-bold mb-2 mt-4" {...props} />,
+                  p: (props) => <p className="mb-3 text-muted" {...props} />,
+                  strong: (props) => <strong className="font-bold text-primary" {...props} />,
+                  em: (props) => <em className="italic text-muted" {...props} />,
+                  ul: (props) => <ul className="list-disc list-inside mb-3 text-muted" {...props} />,
+                  ol: (props) => <ol className="list-decimal list-inside mb-3 text-muted" {...props} />,
+                  li: (props) => <li className="mb-1" {...props} />,
+                  code: (props) => <code className="bg-white/10 px-2 py-1 rounded text-sm font-mono" {...props} />,
+                  pre: (props) => <pre className="bg-white/10 p-3 rounded mb-3 overflow-x-auto" {...props} />,
+                }}
+              >
+                {summary}
+              </ReactMarkdown>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'; // Add React import here
+import { useState } from 'react';
 import TextSummaryService from '../lib/openai/TextSummaryService';
 
 export default function SimpleTest() {
