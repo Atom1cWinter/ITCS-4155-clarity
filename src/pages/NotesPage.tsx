@@ -264,17 +264,39 @@ export default function NotesPage() {
             <div className="bg-white/5 rounded-lg p-4 markdown-content">
               <ReactMarkdown
                 components={{
-                  h1: (props) => <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />,
-                  h2: (props) => <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />,
-                  h3: (props) => <h3 className="text-xl font-bold mb-2 mt-4" {...props} />,
-                  p: (props) => <p className="mb-3 text-muted" {...props} />,
-                  strong: (props) => <strong className="font-bold text-primary" {...props} />,
-                  em: (props) => <em className="italic text-muted" {...props} />,
-                  ul: (props) => <ul className="list-disc list-inside mb-3 text-muted" {...props} />,
-                  ol: (props) => <ol className="list-decimal list-inside mb-3 text-muted" {...props} />,
-                  li: (props) => <li className="mb-1" {...props} />,
-                  code: (props) => <code className="bg-white/10 px-2 py-1 rounded text-sm font-mono" {...props} />,
-                  pre: (props) => <pre className="bg-white/10 p-3 rounded mb-3 overflow-x-auto" {...props} />,
+                  h1: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                    <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />
+                  ),
+                  h2: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                    <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />
+                  ),
+                  h3: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                    <h3 className="text-xl font-bold mb-2 mt-4" {...props} />
+                  ),
+                  p: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLParagraphElement>>) => (
+                    <p className="mb-3 text-muted" {...props} />
+                  ),
+                  strong: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                    <strong className="font-bold text-primary" {...props} />
+                  ),
+                  em: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                    <em className="italic text-muted" {...props} />
+                  ),
+                  ul: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLUListElement>>) => (
+                    <ul className="list-disc list-inside mb-3 text-muted" {...props} />
+                  ),
+                  ol: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLOListElement>>) => (
+                    <ol className="list-decimal list-inside mb-3 text-muted" {...props} />
+                  ),
+                  li: (props: React.PropsWithChildren<React.LiHTMLAttributes<HTMLLIElement>>) => (
+                    <li className="mb-1" {...props} />
+                  ),
+                  code: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                    <code className="bg-white/10 px-2 py-1 rounded text-sm font-mono" {...props} />
+                  ),
+                  pre: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLPreElement>>) => (
+                    <pre className="bg-white/10 p-3 rounded mb-3 overflow-x-auto" {...props} />
+                  ),
                 }}
               >
                 {summary}
