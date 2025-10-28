@@ -1,4 +1,8 @@
 // OpenAIService.js - Browser-compatible base service
+// Handles text summarization, PDF processing, and image analysis
+
+import * as pdfjsLib from 'pdfjs-dist';
+
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
@@ -80,13 +84,60 @@ class OpenAIService {
       // Handle .txt, .html, etc.
       return await file.text();
     } else if (fileType === 'application/pdf') {
-      // For PDF files, you'll need a PDF parsing library
-      throw new Error('PDF processing not yet implemented. Consider using pdf-parse or similar library.');
+      // Handle PDF files
+      return await this.extractTextFromPDF(file);
     } else if (fileType.startsWith('image/')) {
       // For images, we'll use vision API
       return await this.processImageFile(file);
     } else {
       throw new Error(`Unsupported file type: ${fileType}`);
+    }
+  }
+
+  // Extract text from PDF file using pdfjs
+  private async extractTextFromPDF(file: File): Promise<string> {
+    try {
+      console.log('Starting PDF extraction for:', file.name); // DEBUG
+      
+      // Set the worker source - match the installed version dynamically
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`;
+      
+      const arrayBuffer = await file.arrayBuffer();
+      console.log('PDF size:', arrayBuffer.byteLength, 'bytes'); // DEBUG
+      
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      console.log('PDF pages:', pdf.numPages); // DEBUG
+      
+      let fullText = '';
+      
+      // Extract text from all pages
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          // Get text from page
+          const pageText = textContent.items
+            .map((item: { str?: string; [key: string]: unknown }) => item.str || '')
+            .join(' ');
+          
+          fullText += pageText + '\n';
+          console.log(`Page ${pageNum}: ${pageText.length} characters`); // DEBUG
+        } catch (err) {
+          console.warn(`Error processing page ${pageNum}:`, err); // DEBUG
+          continue;
+        }
+      }
+      
+      if (!fullText.trim()) {
+        throw new Error('Could not extract any text from PDF');
+      }
+      
+      console.log('PDF extraction complete:', fullText.length, 'characters'); // DEBUG
+      return fullText;
+    } catch (error) {
+      console.error('PDF extraction error:', error); // DEBUG
+      throw error;
     }
   }
 
@@ -122,20 +173,24 @@ class OpenAIService {
     });
   }
 
-  // Process uploaded file and return extracted content
+  // Process uploaded file and return summary/processed content
   async processUploadedFile(file: File, prompt: string, options: OpenAIOptions = {}): Promise<string> {
     try {
+      console.log('Processing file:', file.name, 'Type:', file.type); // DEBUG
+      
       const extractedText = await this.extractTextFromFile(file);
+      
+      console.log('Text extracted, length:', extractedText.length); // DEBUG
       
       const messages: ChatMessage[] = [{
         role: "user",
-        content: `${prompt}\n\nContent from uploaded file (${file.name}):\n\n${extractedText}`
+        content: `${prompt}\n\nContent from file (${file.name}):\n\n${extractedText}`
       }];
 
       const response = await this.chatCompletion(messages, options);
       return response.choices[0].message.content;
     } catch (error) {
-      console.error('Error processing uploaded file:', error);
+      console.error('Error processing uploaded file:', error); // DEBUG
       throw error;
     }
   }

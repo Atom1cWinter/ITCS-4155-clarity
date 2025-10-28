@@ -7,6 +7,7 @@ import {
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+import AmbientBackground from '../components/AmbientBackground';
 
 // Define the two modes our auth page can be in - login or register
 type AuthMode = 'login' | 'register';
@@ -60,20 +61,59 @@ export default function AuthPage() {
   }, [showSuccessModal, countdown]);
 
   /**
+   * Client-side validation before Firebase submission
+   */
+  const validateForm = (): boolean => {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      setAuthError('Email address is required.');
+      return false;
+    }
+    if (!emailRegex.test(email)) {
+      setAuthError('Please enter a valid email address (e.g., example@email.com).');
+      return false;
+    }
+
+    // Password validation
+    if (!password.trim()) {
+      setAuthError('Password is required.');
+      return false;
+    }
+    if (password.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return false;
+    }
+
+    // Registration-specific validation
+    if (mode === 'register') {
+      if (!confirmPassword.trim()) {
+        setPasswordError('Please confirm your password.');
+        return false;
+      }
+      if (password !== confirmPassword) {
+        setPasswordError('Passwords do not match. Please make sure both passwords are identical.');
+        // Focus the confirm password field for better UX
+        const confirmField = document.querySelector('input[name="confirmPassword"]') as HTMLInputElement;
+        confirmField?.focus();
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  /**
    * Handle form submission for both login and register
-   * Now integrated with Firebase authentication
+   * Now integrated with Firebase authentication and comprehensive validation
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); // Prevent default form submission
     setPasswordError(''); // Clear any existing errors
     setAuthError(''); // Clear any existing auth errors
     
-    // Validate passwords match in register mode only
-    if (mode === 'register' && password !== confirmPassword) {
-      setPasswordError('Passwords do not match');
-      // Focus the confirm password field for better UX
-      const confirmField = document.querySelector('input[name="confirmPassword"]') as HTMLInputElement;
-      confirmField?.focus();
+    // Run client-side validation first
+    if (!validateForm()) {
       return;
     }
 
@@ -128,25 +168,61 @@ export default function AuthPage() {
 
   /**
    * Convert Firebase error codes to user-friendly messages
+   * Comprehensive error handling for all common Firebase Auth errors
    */
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
+      // Login specific errors
       case 'auth/user-not-found':
-        return 'No account found with this email address.';
+        return 'No account found with this email address. Please check your email or register for a new account.';
       case 'auth/wrong-password':
-        return 'Incorrect password. Please try again.';
+        return 'Incorrect password. Please try again or use "Forgot Password" if you need help.';
+      case 'auth/invalid-credential':
+        return 'Invalid email or password. Please check your credentials and try again.';
+      
+      // Registration specific errors
       case 'auth/email-already-in-use':
-        return 'An account with this email already exists.';
+        return 'An account with this email already exists. Please login instead or use a different email.';
       case 'auth/weak-password':
-        return 'Password should be at least 6 characters long.';
+        return 'Password is too weak. Please use at least 6 characters with a mix of letters and numbers.';
+      
+      // Email format errors
       case 'auth/invalid-email':
-        return 'Please enter a valid email address.';
+        return 'Please enter a valid email address (e.g., example@email.com).';
+      case 'auth/missing-email':
+        return 'Email address is required. Please enter your email.';
+      
+      // Password errors
+      case 'auth/missing-password':
+        return 'Password is required. Please enter your password.';
+      case 'auth/too-many-requests':
+        return 'Too many failed login attempts. Please wait a few minutes before trying again.';
+      
+      // Account status errors
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support for assistance.';
+      case 'auth/operation-not-allowed':
+        return 'Email/password accounts are not enabled. Please contact support.';
+      
+      // Google sign-in errors
       case 'auth/popup-closed-by-user':
-        return 'Sign-in was cancelled.';
+        return 'Sign-in was cancelled. Please try again to continue with Google.';
+      case 'auth/popup-blocked':
+        return 'Pop-up was blocked by your browser. Please allow pop-ups and try again.';
+      case 'auth/cancelled-popup-request':
+        return 'Sign-in request was cancelled. Please try again.';
+      
+      // Network and system errors
       case 'auth/network-request-failed':
-        return 'Network error. Please check your connection.';
+        return 'Network error. Please check your internet connection and try again.';
+      case 'auth/timeout':
+        return 'Request timed out. Please check your connection and try again.';
+      case 'auth/internal-error':
+        return 'An internal error occurred. Please try again in a moment.';
+      
+      // Generic fallback
       default:
-        return 'Authentication failed. Please try again.';
+        return `Authentication failed (${errorCode}). Please try again or contact support if the problem persists.`;
     }
   };
 
@@ -165,23 +241,24 @@ export default function AuthPage() {
   };
 
   return (
-    // Main container - full height with dark background, centered content
-    <div className="min-h-screen bg-[#1E1E1E] grid place-items-center px-6">
-      <div className="w-full max-w-md">
-        {/* Header Section - Changes based on login/register mode */}
-        <h1 className="text-4xl font-semibold text-white text-center">
-          {mode === 'login' ? 'Login to Your Account' : 'Create Your Account'}
-        </h1>
-        <p className="mt-2 text-center text-white/60 max-w-md mx-auto">
-          {mode === 'login' 
-            ? 'Welcome back! Enter your credentials to access your lectures, notes, and flashcards.'
-            : 'Join Clarity today! Create your account to start organizing your lectures, notes, and flashcards.'
-          }
-        </p>
+    <AmbientBackground>
+      {/* Main container - full height, centered content */}
+      <div className="w-full h-full grid place-items-center px-6 py-12">
+        <div className="w-full max-w-md">
+          {/* Header Section - Changes based on login/register mode */}
+          <h1 className="text-4xl font-semibold text-white text-center">
+            {mode === 'login' ? 'Login to Your Account' : 'Create Your Account'}
+          </h1>
+          <p className="mt-2 text-center text-white/60 max-w-md mx-auto">
+            {mode === 'login' 
+              ? 'Welcome back! Enter your credentials to access your lectures, notes, and flashcards.'
+              : 'Join Clarity today! Create your account to start organizing your lectures, notes, and flashcards.'
+            }
+          </p>
 
-        {/* Auth Card - Glass morphism effect with backdrop blur */}
-        <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Auth Card - Glass morphism effect with backdrop blur */}
+          <div className="mt-8 glass-surface p-8">
+            <form onSubmit={handleSubmit} className="space-y-4">
             {/* Form Inputs Section */}
             <div className="space-y-3">
               {/* Email Input - Always visible in both modes */}
@@ -191,9 +268,17 @@ export default function AuthPage() {
                 placeholder="Email"
                 aria-label="Email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  // Clear auth error when user starts typing
+                  if (authError) setAuthError('');
+                }}
                 required
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                className={`w-full h-14 rounded-xl bg-white/5 border px-5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all ${
+                  authError && !email.trim() 
+                    ? 'border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10'
+                }`}
               />
               
               {/* Password Input - Always visible in both modes */}
@@ -203,9 +288,18 @@ export default function AuthPage() {
                 placeholder="Password"
                 aria-label="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  // Clear errors when user starts typing
+                  if (authError) setAuthError('');
+                  if (passwordError) setPasswordError('');
+                }}
                 required
-                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                className={`w-full h-14 rounded-xl bg-white/5 border px-5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all ${
+                  (authError && !password.trim()) || passwordError
+                    ? 'border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10'
+                }`}
               />
               
               {/* Confirm Password Input - Only shown in register mode */}
@@ -218,33 +312,46 @@ export default function AuthPage() {
                   aria-invalid={passwordError ? 'true' : 'false'}
                   aria-describedby={passwordError ? 'password-error' : undefined}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    // Clear password error when user starts typing
+                    if (passwordError) setPasswordError('');
+                  }}
                   required
-                  className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                  className={`w-full h-14 rounded-xl bg-white/5 border px-5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all ${
+                    passwordError
+                      ? 'border-red-500/50 focus:ring-red-500/20' 
+                      : 'border-white/10'
+                  }`}
                 />
               )}
             </div>
 
-            {/* Error Messages - Shows validation and auth errors */}
+            {/* Error Messages - Enhanced styling for better visibility */}
             {passwordError && (
-              <p id="password-error" className="text-sm text-red-400 text-center">
-                {passwordError}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 backdrop-blur">
+                <p id="password-error" className="text-sm text-red-300 text-center flex items-center justify-center gap-2">
+                  <span className="text-red-400">⚠️</span>
+                  {passwordError}
+                </p>
+              </div>
             )}
             {authError && (
-              <p className="text-sm text-red-400 text-center">
-                {authError}
-              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 backdrop-blur">
+                <p className="text-sm text-red-300 text-center flex items-center justify-center gap-2">
+                  <span className="text-red-400">⚠️</span>
+                  {authError}
+                </p>
+              </div>
             )}
 
-            {/* Main Submit Button - Purple to yellow gradient */}
+            {/* Main Submit Button - Blue gradient with refined hover */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-14 rounded-xl font-semibold text-black shadow-[0_8px_24px_rgba(0,0,0,0.25)] bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] hover:brightness-110 active:scale-[0.99] transition flex items-center justify-between px-6 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full h-14 rounded-xl font-semibold text-white shadow-lg shadow-blue-500/20 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 active:scale-[0.98] transition-all flex items-center justify-center px-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{isLoading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}</span>
-              <span className="text-lg">›</span>
             </button>
 
             {/* Mode Toggle Link - Switches between login and register */}
@@ -268,27 +375,24 @@ export default function AuthPage() {
           </form>
 
           {/* Divider Section - "or" with lines on each side */}
-          <div className="my-4 flex items-center gap-3">
+          <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10"></div>
             <span className="text-xs text-white/50">or</span>
             <div className="h-px flex-1 bg-white/10"></div>
           </div>
 
-          {/* Google Sign-In Button - Uses gradient border technique */}
-          {/* Outer div creates gradient border, inner div is the actual button */}
+          {/* Google Sign-In Button - Glass morphism style */}
           <button 
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full h-12 rounded-xl bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] p-[1px] hover:brightness-110 transition group disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full h-14 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <div className="w-full h-full rounded-xl bg-[#1E1E1E] hover:bg-white/5 transition flex items-center justify-center gap-3">
-              <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                <span className="text-xs font-bold text-black">G</span>
-              </div>
-              <span className="text-white">
-                {isLoading ? 'Please wait...' : 'Sign in with Google'}
-              </span>
+            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+              <span className="text-sm font-bold text-black">G</span>
             </div>
+            <span className="text-white font-medium">
+              {isLoading ? 'Please wait...' : 'Sign in with Google'}
+            </span>
           </button>
         </div>
 
@@ -309,10 +413,10 @@ export default function AuthPage() {
       {/* Success Modal - Shows after successful registration */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-6">
-          <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full text-center backdrop-blur">
+          <div className="glass-surface-strong p-8 max-w-md w-full text-center">
             <div className="mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">✓</span>
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+                <span className="text-3xl text-white">✓</span>
               </div>
               <h2 className="text-2xl font-semibold text-white mb-2">
                 Sign up successful!
@@ -323,7 +427,7 @@ export default function AuthPage() {
             </div>
             <div className="text-white/80">
               <p className="mb-2">Redirecting to login in</p>
-              <div className="text-3xl font-bold bg-gradient-to-r from-[#A9A5FD] to-[#EBD75D] bg-clip-text text-transparent">
+              <div className="text-3xl font-bold text-blue-400">
                 {countdown}
               </div>
             </div>
@@ -331,5 +435,6 @@ export default function AuthPage() {
         </div>
       )}
     </div>
+    </AmbientBackground>
   );
 }
