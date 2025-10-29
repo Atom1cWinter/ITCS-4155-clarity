@@ -113,6 +113,14 @@ export default function QuizzesPage() {
                     <h1 className="hero-title mb-4">Quizzes</h1>
                     <p className="hero-subtitle mb-6">Generate AI-powered multiple-choice quizzes from your notes or uploads.</p>
 
+                    {/* Info Chip */}
+                    <div className="inline-flex items-center gap-2 glass-surface px-4 py-2 text-sm text-muted mb-6">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Powered by OpenAI GPT</span>
+                    </div>
+
                     <div className="glass-surface p-6 mb-6">
                         <div className="flex gap-3 justify-center mb-4">
                             <button onClick={() => setMode('existing')} className={`px-4 py-2 rounded ${mode==='existing' ? 'bg-blue-600 text-white' : 'bg-white/5'}`}>Use Existing Notes</button>

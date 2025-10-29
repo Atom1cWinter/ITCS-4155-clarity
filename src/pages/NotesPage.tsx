@@ -6,6 +6,7 @@ import FileUpload from '../components/FileUpload';
 import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
+import DocumentService from '../lib/firebase/DocumentService';
 import SummaryHistory from '../components/SummaryHistory';
 import type { Summary } from '../lib/firebase/SummaryService';
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
@@ -83,6 +84,24 @@ export default function NotesPage() {
           updatedAt: new Date(),
         });
         console.log('Summary saved to Firestore successfully');
+        
+        // Also save as a document for the Upload page
+        try {
+          await DocumentService.uploadDocument({
+            userId,
+            fileName: selectedFile.name,
+            fileHash,
+            fileSize: selectedFile.size,
+            fileType: selectedFile.type || 'unknown',
+            uploadedAt: new Date(),
+            updatedAt: new Date(),
+          });
+          console.log('Document saved to Firestore successfully');
+        } catch (docError) {
+          console.error('Error saving document:', docError);
+          // Don't show error - document save is secondary
+        }
+        
         // Trigger refresh of summary history
         setRefreshTrigger(prev => prev + 1);
       } catch (dbError) {

@@ -16,13 +16,6 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
 
   return (
     <>
-      <div className="max-w-3xl mx-auto text-center mb-12">
-        <h1 className="hero-title mb-4">Flashcards</h1>
-        <p className="hero-subtitle mb-6">
-          Upload your lecture notes or enter text to get AI-powered flashcards
-        </p>
-      </div>
-
       <div className="glass-surface p-6 mb-6 max-w-3xl mx-auto">
         {/* Mode toggle */}
         <div className="flex items-center justify-center space-x-4 mb-4">
