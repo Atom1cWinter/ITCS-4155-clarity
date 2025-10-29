@@ -8,6 +8,7 @@ import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
 import SummaryHistory from '../components/SummaryHistory';
+import ProgressBar from '../components/ProgressBar';
 import type { Summary } from '../lib/firebase/SummaryService';
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
@@ -21,6 +22,7 @@ export default function NotesPage() {
   const [useFileUpload, setUseFileUpload] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
@@ -62,10 +64,20 @@ export default function NotesPage() {
     console.log('Starting file summarization for:', selectedFile.name, selectedFile.type, selectedFile.size); // DEBUG
 
     setIsLoading(true);
+    setProgress(0);
     setError(null);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
 
     try {
       const result = await TextSummaryService.summarizeFromFile(selectedFile);
+      setProgress(85);
       console.log('File summary result:', result); // DEBUG
       setSummary(result);
 
@@ -102,6 +114,7 @@ export default function NotesPage() {
           // Don't show error - document save is secondary
         }
         
+        setProgress(100);
         // Trigger refresh of summary history
         setRefreshTrigger(prev => prev + 1);
       } catch (dbError) {
@@ -116,7 +129,9 @@ export default function NotesPage() {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(`Failed to generate summary from file: ${errorMessage}`);
     } finally {
+      clearInterval(progressInterval);
       setIsLoading(false);
+      setTimeout(() => setProgress(0), 500);
     }
   };
 
@@ -132,10 +147,20 @@ export default function NotesPage() {
     }
 
     setIsLoading(true);
+    setProgress(0);
     setError(null);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
 
     try {
       const result = await TextSummaryService.summarizeText(inputText);
+      setProgress(85);
       setSummary(result);
 
       // Save summary to Firestore
@@ -153,6 +178,7 @@ export default function NotesPage() {
           updatedAt: new Date(),
         });
         console.log('Text summary saved to Firestore successfully');
+        setProgress(100);
         // Trigger refresh of summary history
         setRefreshTrigger(prev => prev + 1);
       } catch (dbError) {
@@ -167,12 +193,19 @@ export default function NotesPage() {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(`Failed to generate summary: ${errorMessage}`);
     } finally {
+      clearInterval(progressInterval);
       setIsLoading(false);
+      setTimeout(() => setProgress(0), 500);
     }
   };
 
   return (
     <AmbientBackground>
+      <ProgressBar 
+        progress={progress} 
+        isVisible={isLoading} 
+        label="Generating summary..."
+      />
       {/* Page content with top padding for floating nav */}
       <div className="w-full h-full pt-60 pb-12 px-6">
         {/* Debug Components - Only show when DEBUG_MODE is true */}

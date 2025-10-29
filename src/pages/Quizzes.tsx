@@ -3,6 +3,7 @@ import AmbientBackground from '../components/AmbientBackground';
 import FileUpload from '../components/FileUpload';
 import Button from '../components/Button';
 import SummaryHistory from '../components/SummaryHistory';
+import ProgressBar from '../components/ProgressBar';
 import QuizService from '../lib/openai/QuizService';
 import { auth } from '../lib/firebase';
 import type { Summary } from '../lib/firebase/SummaryService';
@@ -31,6 +32,7 @@ export default function QuizzesPage() {
     const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [progress, setProgress] = useState(0);
 
 
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -48,23 +50,37 @@ export default function QuizzesPage() {
     const handleGenerate = async () => {
         setError(null);
         setIsLoading(true);
+        setProgress(0);
         setQuestions(null);
+
+        // Simulate progress
+        const progressInterval = setInterval(() => {
+          setProgress(prev => {
+            if (prev >= 90) return prev;
+            return prev + Math.random() * 30;
+          });
+        }, 300);
 
         try {
             const options: QuizOptions = { numQuestions, difficulty };
 
                     if (mode === 'upload' && selectedFile) {
                 const qs = await QuizService.generateQuizFromFile(selectedFile, options);
+                setProgress(85);
                 setQuestions(qs);
                     } else if (mode === 'existing' && selectedSummary) {
                         const qs = await QuizService.generateQuiz(selectedSummary.summaryText || '', options);
+                setProgress(85);
                 setQuestions(qs);
             } else if (mode === 'text' && pastedText.trim().length > 0) {
                 const qs = await QuizService.generateQuiz(pastedText, options);
+                setProgress(85);
                 setQuestions(qs);
             } else {
                 setError('Please provide a file, pick an existing note, or paste text to generate a quiz.');
             }
+            setProgress(100);
+            clearInterval(progressInterval);
             } catch (err) {
                 console.error('QuizzesPage: generate error', err);
                     let message = 'Failed to generate quiz';
@@ -73,6 +89,7 @@ export default function QuizzesPage() {
                     setError(message);
         } finally {
             setIsLoading(false);
+            setTimeout(() => setProgress(0), 500);
         }
     };
 
@@ -108,6 +125,11 @@ export default function QuizzesPage() {
 
     return (
         <AmbientBackground>
+            <ProgressBar 
+              progress={progress} 
+              isVisible={isLoading} 
+              label="Generating quiz..."
+            />
             <div className="w-full h-full grid place-items-center px-6 py-10">
                 <div className="text-center max-w-3xl w-full">
                     <h1 className="hero-title mb-4">Quizzes</h1>

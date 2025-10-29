@@ -3,6 +3,7 @@ import FlashcardInput from "../components/FlashCardComponents/FlashcardInput";
 import FlashcardList from "../components/FlashCardComponents/FlashcardList";
 import FlashcardSingleView from "../components/FlashCardComponents/FlashcardSingleView";
 import FlashcardService from "../lib/openai/FlashcardService";
+import ProgressBar from "../components/ProgressBar";
 import { auth } from "../lib/firebase";
 import AmbientBackground from "../components/AmbientBackground";
 
@@ -12,6 +13,7 @@ export default function FlashcardsPage() {
   const [flashcards, setFlashcards] = useState<{ front: string; back: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
 
     useEffect(() => {
       const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -26,12 +28,22 @@ export default function FlashcardsPage() {
   const handleGenerate = async (content: string) => {
     try {
       setLoading(true);
+      setProgress(0);
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 30;
+        });
+      }, 300);
 
       const flashcards = await FlashcardService.generateFlashcards(content, {
         numCards: 10,
         style: "short",
         temperature: 0.4,
       });
+      setProgress(100);
       setFlashcards(
         flashcards.map( card => ({
           front: card.front,
@@ -39,12 +51,14 @@ export default function FlashcardsPage() {
         }))
       );
       setFlashcardView(true);
+      clearInterval(progressInterval);
 
     } catch (error) { 
       console.error(error);
       alert("Failed to generate flashcards. Please try again");
     } finally {
       setLoading(false);
+      setTimeout(() => setProgress(0), 500);
     }
   };
 
@@ -52,14 +66,27 @@ export default function FlashcardsPage() {
   const handleFileUpload = async (file: File) => {
   try {
     setLoading(true);
+    setProgress(0);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
+
     const flashcards = await FlashcardService.generateFlashcardsFromFile(file);
+    setProgress(100);
     setFlashcards(flashcards);
     setFlashcardView(true);
+    clearInterval(progressInterval);
   } catch (err) {
     console.error(err);
     alert("Failed to generate from file.");
   } finally {
     setLoading(false);
+    setTimeout(() => setProgress(0), 500);
   }
 };
 
@@ -72,6 +99,11 @@ export default function FlashcardsPage() {
 
   return (
     <AmbientBackground>
+      <ProgressBar 
+        progress={progress} 
+        isVisible={loading} 
+        label="Generating flashcards..."
+      />
       <div className="w-full h-full px-6 ">
         <div className="w-full h-full pt-45 pb-12 px-6">
           {!flashcardView ? (

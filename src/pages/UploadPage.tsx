@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AmbientBackground from '../components/AmbientBackground';
 import FileUpload from '../components/FileUpload';
+import ProgressBar from '../components/ProgressBar';
 import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
 import { generateFileHash } from '../lib/firebase/FileHashService';
@@ -16,6 +17,7 @@ export default function UploadPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [previousFiles, setPreviousFiles] = useState<Summary[]>([]);
   const [loadingPrevious, setLoadingPrevious] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   // Get current user on mount
   useEffect(() => {
@@ -64,19 +66,33 @@ export default function UploadPage() {
     }
 
     setIsLoading(true);
+    setProgress(0);
     setError(null);
     setSuccessMessage(null);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
 
     try {
       // Check for duplicate
       const fileHash = await generateFileHash(selectedFile);
+      setProgress(20);
       const existing = await SummaryService.getSummaryByFileHash(userId, fileHash);
       
       if (existing) {
         setError(`File already uploaded: "${existing.fileName}"`);
         setIsLoading(false);
+        clearInterval(progressInterval);
+        setProgress(0);
         return;
       }
+
+      setProgress(50);
 
       // Upload document
       await DocumentService.uploadDocument({
@@ -89,17 +105,20 @@ export default function UploadPage() {
         updatedAt: new Date(),
       });
 
+      setProgress(100);
       setSuccessMessage(`✓ "${selectedFile.name}" uploaded successfully!`);
       setSelectedFile(null);
       
       // Trigger refresh
       setRefreshTrigger(prev => prev + 1);
+      clearInterval(progressInterval);
     } catch (err) {
       console.error('Error uploading document:', err);
       const errorMsg = err instanceof Error ? err.message : String(err);
       setError(`Upload failed: ${errorMsg}`);
     } finally {
       setIsLoading(false);
+      setTimeout(() => setProgress(0), 500);
     }
   };
 
@@ -121,6 +140,11 @@ export default function UploadPage() {
 
   return (
     <AmbientBackground>
+      <ProgressBar 
+        progress={progress} 
+        isVisible={isLoading} 
+        label="Uploading document..."
+      />
       <div className="w-full h-full pt-60 pb-12 px-6">
         {/* Hero Section */}
         <div className="max-w-3xl mx-auto text-center mb-12">
