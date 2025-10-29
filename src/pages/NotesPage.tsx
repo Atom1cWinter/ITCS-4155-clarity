@@ -217,7 +217,7 @@ export default function NotesPage() {
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 useFileUpload
                   ? 'bg-[#3B82F6] text-primary'
-                  : 'bg-white/10 text-muted hover:bg-white/15'
+                  : 'bg-white/10 text-white hover:bg-[#3B82F6]'
               }`}
             >
               Upload File
@@ -227,7 +227,7 @@ export default function NotesPage() {
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 !useFileUpload
                   ? 'bg-[#3B82F6] text-primary'
-                  : 'bg-white/10 text-muted hover:bg-white/15'
+                  : 'bg-white/10 text-white hover:bg-[#3B82F6]'
               }`}
             >
               Enter Text

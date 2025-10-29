@@ -21,8 +21,8 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
         <div className="flex items-center justify-center space-x-4 mb-4">
           <button
             onClick={() => setMode('existing')}
-            className={`px-4 py-2 rounded-lg font-medium transition-color ${
-              mode === 'existing' ? "bg-blue-500" : "bg-gray-600 hover:bg-blue-600"
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              mode === 'existing' ? "bg-[#3B82F6] text-white" : "bg-white/10 text-white hover:bg-[#3B82F6]"
             }`}
           >
             Existing Notes
@@ -30,7 +30,7 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
           <button
             onClick={() => setMode('file')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              mode === 'file' ? "bg-blue-500" : "bg-gray-600 hover:bg-blue-600"
+              mode === 'file' ? "bg-[#3B82F6] text-white" : "bg-white/10 text-white hover:bg-[#3B82F6]"
             }`}
           >
             Upload File
@@ -38,7 +38,7 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
           <button
             onClick={() => setMode('text')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              mode === 'text' ? "bg-blue-500" : "bg-gray-600 hover:bg-blue-600"
+              mode === 'text' ? "bg-[#3B82F6] text-white" : "bg-white/10 text-white hover:bg-[#3B82F6]"
             }`}
           >
             Text Input

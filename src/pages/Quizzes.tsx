@@ -123,9 +123,9 @@ export default function QuizzesPage() {
 
                     <div className="glass-surface p-6 mb-6">
                         <div className="flex gap-3 justify-center mb-4">
-                            <button onClick={() => setMode('existing')} className={`px-4 py-2 rounded ${mode==='existing' ? 'bg-blue-600 text-white' : 'bg-white/5'}`}>Use Existing Notes</button>
-                            <button onClick={() => setMode('upload')} className={`px-4 py-2 rounded ${mode==='upload' ? 'bg-blue-600 text-white' : 'bg-white/5'}`}>Upload File</button>
-                            <button onClick={() => setMode('text')} className={`px-4 py-2 rounded ${mode==='text' ? 'bg-blue-600 text-white' : 'bg-white/5'}`}>Paste Text</button>
+                            <button onClick={() => setMode('existing')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='existing' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Use Existing Notes</button>
+                            <button onClick={() => setMode('upload')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='upload' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Upload File</button>
+                            <button onClick={() => setMode('text')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='text' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Paste Text</button>
                         </div>
 
                         <div className="space-y-4">

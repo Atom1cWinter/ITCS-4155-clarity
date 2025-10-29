@@ -15,9 +15,9 @@ const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   className = '' 
 }) => {
-  const baseClasses = 'px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseClasses = 'px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors';
   const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
+    primary: 'bg-[#3B82F6] text-white hover:brightness-110 focus:ring-[#3B82F6]',
     secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
   };
 
