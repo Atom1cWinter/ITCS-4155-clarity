@@ -6,6 +6,7 @@ import FlashcardsPage from './pages/FlashcardsPage'
 import NavBar from './components/NavBar'
 import QuizzesPage from './pages/Quizzes'
 import UploadPage from './pages/UploadPage'
+import ProfilePage from './pages/ProfilePage'
 
 /* changed app to hide nav bar on login and registration*/
 function AppRoutes() {
@@ -21,6 +22,7 @@ function AppRoutes() {
         <Route path="/flashcards" element={<FlashcardsPage />} />
         <Route path='/quizzes' element={<QuizzesPage />} />
         <Route path='/upload' element={<UploadPage />} />
+        <Route path='/profile' element={<ProfilePage />} />
         <Route path="/" element={<Navigate to="/auth" />} />
       </Routes>
     </>
