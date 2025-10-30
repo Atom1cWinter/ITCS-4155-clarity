@@ -97,8 +97,7 @@ const NavBar: React.FC<NavbarProps> = () => {
                         {isOpen && (
                           <div
                             role="menu"
-                            className="absolute right-0 mt-2 w-44 glass-surface shadow-xl"
-                          >
+                            className="absolute top-full left-1/2 -translate-x-1/2 transform mt-2 w-44 glass-surface shadow-xl z-50"                          >
                             <Link
                               to="/profile"
                               onClick={() => setIsOpen(false)}
