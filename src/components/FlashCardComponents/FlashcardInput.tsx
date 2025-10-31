@@ -1,6 +1,6 @@
 import { useState } from "react";
 import FileUpload from "../FileUpload";
-import SummaryHistory from "../SummaryHistory"; 
+import UploadedFilesHistory from "../UploadedFilesHistory"; 
 
 
 interface FlashcardInputProps {
@@ -48,9 +48,15 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
         {/* Input areas */}
         {mode === 'existing' && (
           <div className="mt-4">
-            <SummaryHistory
+            <UploadedFilesHistory
               userId={userId!}
-              onSelectSummary={(summary) => onGenerate(summary.summaryText || "")}
+              onSelectDocument={(doc) => {
+                // We only have metadata here (document entry). Notify caller that
+                // the user selected an uploaded file. Caller may prompt the user
+                // to re-upload or navigate to Uploads if raw file content is needed.
+                // For now, pass the fileName so the page can act accordingly.
+                onGenerate(`[[uploaded:${doc.fileName}]]`);
+              }}
             />
 
             {loading && (

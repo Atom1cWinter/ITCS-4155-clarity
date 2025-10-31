@@ -7,11 +7,13 @@ import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
-import SummaryHistory from '../components/SummaryHistory';
+import UploadedFilesHistory from '../components/UploadedFilesHistory';
 import ProgressBar from '../components/ProgressBar';
-import type { Summary } from '../lib/firebase/SummaryService';
+// Summary type unused now that we show uploaded documents instead of generated summaries
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
+import ContentService from '../lib/firebase/ContentService';
+import type { SummaryPayload } from '../lib/firebase/ContentService';
 
 export default function NotesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -20,29 +22,28 @@ export default function NotesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useFileUpload, setUseFileUpload] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [savingSummary, setSavingSummary] = useState(false);
+  const [savedSummaryId, setSavedSummaryId] = useState<string | null>(null);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
+
+  const userId = auth.currentUser?.uid || null;
 
   // Get current user on mount
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        setUserId(user.uid);
+        // setUserId(user.uid);
       }
     });
     return unsubscribe;
   }, []);
 
-  const handleSelectPreviousSummary = (prevSummary: Summary) => {
-    setSummary(prevSummary.summaryText);
-    setSelectedFile(null);
-    setInputText('');
-    setError(null);
-  };
+  // Note: previous selection of generated summaries is deprecated in favor of
+  // selecting uploaded documents via UploadedFilesHistory.
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -199,6 +200,36 @@ export default function NotesPage() {
     }
   };
 
+  const handleSaveSummary = async () => {
+    if (!userId) {
+      setError('Please sign in to save summaries.');
+      return;
+    }
+    if (!summary) {
+      setError('No summary to save.');
+      return;
+    }
+
+    try {
+      setSavingSummary(true);
+      const source = (selectedFile ? 'upload' : inputText ? 'paste' : 'existing') as SummaryPayload['source'];
+      const payload: SummaryPayload = {
+        title: 'Summary',
+        text: summary,
+        source,
+      };
+      const id = await ContentService.saveContent(userId, 'summaries', payload);
+      setSavedSummaryId(id);
+      // small confirmation could be UI badge instead of alert
+    } catch (err: unknown) {
+      console.error('Failed to save summary', err);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(`Failed to save summary: ${message}`);
+    } finally {
+      setSavingSummary(false);
+    }
+  };
+
   return (
     <AmbientBackground>
       <ProgressBar 
@@ -237,9 +268,24 @@ export default function NotesPage() {
         {/* Main Content */}
         <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Previous Summaries History */}
+        {/* Uploaded Documents History (select an uploaded file to operate on it) */}
         {userId && (
-          <SummaryHistory userId={userId} onSelectSummary={handleSelectPreviousSummary} refreshTrigger={refreshTrigger} />
+          <UploadedFilesHistory
+            userId={userId}
+            onSelectDocument={(d) => {
+              // When a user selects an uploaded document we don't yet have the raw File
+              // object in the browser. We'll populate a small UI hint and store the
+              // selected document metadata so the user can choose how to proceed.
+              setSelectedFile(null);
+              setInputText('');
+              setSummary('');
+              setError(null);
+              // Store the selection in summary state as a lightweight message so
+              // the UI shows which uploaded file is selected.
+              setSummary(`Selected uploaded file: ${d.fileName} — click 'Generate Summary from File' after re-uploading this file if necessary.`);
+            }}
+            refreshTrigger={refreshTrigger}
+          />
         )}
 
         {/* Mode Toggle */}
@@ -309,10 +355,26 @@ export default function NotesPage() {
           </div>
         )}
 
-        {/* Summary Display */}
+        {/* Summary Display with save button at top-right */}
         {summary && (
           <div className="glass-surface p-6">
-            <h2 className="text-2xl font-semibold text-primary mb-4">Summary</h2>
+            <div className="mb-4 flex items-start justify-between">
+              <h2 className="text-2xl font-semibold text-primary">Summary</h2>
+              <div>
+                {userId ? (
+                  <button
+                    onClick={handleSaveSummary}
+                    disabled={savingSummary || !userId}
+                    className="px-4 py-2 bg-green-600 rounded text-white disabled:opacity-50"
+                  >
+                    {savingSummary ? 'Saving...' : savedSummaryId ? 'Saved ✓' : 'Save Summary'}
+                  </button>
+                ) : (
+                  <div className="text-sm text-muted">Sign in to save</div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white/5 rounded-lg p-4 markdown-content">
               <ReactMarkdown
                 components={{

@@ -3,6 +3,7 @@ import FlashcardInput from "../components/FlashCardComponents/FlashcardInput";
 import FlashcardList from "../components/FlashCardComponents/FlashcardList";
 import FlashcardSingleView from "../components/FlashCardComponents/FlashcardSingleView";
 import FlashcardService from "../lib/openai/FlashcardService";
+import ContentService from "../lib/firebase/ContentService";
 import ProgressBar from "../components/ProgressBar";
 import { auth } from "../lib/firebase";
 import AmbientBackground from "../components/AmbientBackground";
@@ -14,6 +15,8 @@ export default function FlashcardsPage() {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
 
     useEffect(() => {
       const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -95,6 +98,36 @@ export default function FlashcardsPage() {
     setFlashcardView(false);
   };
 
+  const handleSaveDeck = async () => {
+    if (!userId) {
+      alert('Sign in to save flashcards to your profile.');
+      return;
+    }
+    if (!flashcards || flashcards.length === 0) {
+      alert('No flashcards to save.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSavedId(null);
+      const title = `Flashcards — ${new Date().toLocaleString()}`;
+      const id = await ContentService.saveContent(userId, 'flashcards', {
+        title,
+        cards: flashcards,
+        numCards: flashcards.length,
+        style: 'short',
+      });
+      setSavedId(id);
+      alert('Flashcards saved to your profile.');
+    } catch (err) {
+      console.error('Failed to save flashcards', err);
+      alert('Failed to save flashcards.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   
 
   return (
@@ -129,6 +162,16 @@ export default function FlashcardsPage() {
             </div>
           ) : (
             <div className="max-w-5xl mx-auto px-6 space-y-16">
+              <div className="flex justify-end gap-3">
+                {userId ? (
+                  <button onClick={handleSaveDeck} disabled={saving} className="px-4 py-2 bg-green-600 rounded text-white disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save Flashcards'}
+                  </button>
+                ) : (
+                  <div className="text-sm text-muted">Sign in to save generated flashcards</div>
+                )}
+                {savedId && <div className="text-sm text-green-300">Saved ✓</div>}
+              </div>
               {/* Single card view section */}
               <section className="">
                 <FlashcardSingleView flashcards={flashcards} onBack={handleBack} />

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import AmbientBackground from '../components/AmbientBackground';
-import PrivacyPolicy from '../components/PrivacyPolicy';
-import FeedbackModal from '../components/FeedbackModal';
-import { auth } from '../lib/firebase';
 import { updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser, type User } from 'firebase/auth';
 import { db } from '../lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
-import SummaryService from '../lib/firebase/SummaryService';
+import { auth } from '../lib/firebase';
+import AmbientBackground from '../components/AmbientBackground';
+import PrivacyPolicy from '../components/PrivacyPolicy';
+import FeedbackModal from '../components/FeedbackModal';
 import DocumentService from '../lib/firebase/DocumentService';
+import ContentService from '../lib/firebase/ContentService';
+import { useNavigate } from 'react-router-dom';
 
 interface UserStats {
   totalSummaries: number;
@@ -26,8 +26,31 @@ interface UserProfile {
   createdAt: string;
 }
 
+interface SummaryItem {
+  id: string;
+  title?: string;
+  text?: string;
+  createdAt?: unknown;
+}
+
+interface FlashcardItem {
+  id: string;
+  title?: string;
+  cards?: Array<{ front: string; back: string }>;
+  numCards?: number;
+  createdAt?: unknown;
+}
+
+interface QuizItem {
+  id: string;
+  title?: string;
+  questions?: Array<{ question: string; options: string[]; correctAnswer: number }>;
+  numQuestions?: number;
+  score?: number;
+  createdAt?: unknown;
+}
+
 export default function ProfilePage() {
-  const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats>({
     totalSummaries: 0,
@@ -62,6 +85,13 @@ export default function ProfilePage() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [listKind, setListKind] = useState<'summaries' | 'flashcards' | 'quizzes' | null>(null);
+  const [items, setItems] = useState<Array<SummaryItem | FlashcardItem | QuizItem>>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const userId = auth.currentUser?.uid || null;
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -94,22 +124,23 @@ export default function ProfilePage() {
     return unsubscribe;
   }, []);
 
+
   const getUserStats = async (userId: string): Promise<UserStats> => {
     try {
-      const summaries = await SummaryService.getUserSummaries(userId);
-      const documents = await DocumentService.getUserDocuments(userId);
+      const [counts, documents] = await Promise.all([
+        ContentService.getCounts(userId),
+        DocumentService.getUserDocuments(userId),
+      ] as const);
 
-      // Calculate storage used (in KB)
-      const summaryStorage = summaries.reduce((sum: number, s) => sum + (s.fileSize || 0), 0) / 1024;
+      // Calculate storage used (in KB) from uploaded documents only
       const documentStorage = documents.reduce((sum: number, d) => sum + (d.fileSize || 0), 0) / 1024;
-      const totalStorage = summaryStorage + documentStorage;
 
       return {
-        totalSummaries: summaries.length,
-        totalFlashcards: 0, // Will be populated when we have flashcard service
-        totalQuizzes: 0, // Will be populated when we have quiz service
+        totalSummaries: counts.summaries,
+        totalFlashcards: counts.flashcards,
+        totalQuizzes: counts.quizzes,
         totalDocuments: documents.length,
-        storageUsed: Math.round(totalStorage * 100) / 100, // Round to 2 decimals
+        storageUsed: Math.round(documentStorage * 100) / 100, // Round to 2 decimals
       };
     } catch (err) {
       console.error('Error getting user stats:', err);
@@ -383,6 +414,38 @@ export default function ProfilePage() {
     }
   };
 
+  const openList = async (kind: 'summaries' | 'flashcards' | 'quizzes') => {
+    if (!userId) {
+      // prompt sign in or show message
+      return;
+    }
+    setListKind(kind);
+    setListOpen(true);
+    setLoadingItems(true);
+    try {
+      if (kind === 'summaries') {
+        const data = await ContentService.getContent<SummaryItem>(userId, kind);
+        setItems(data);
+      } else if (kind === 'flashcards') {
+        const data = await ContentService.getContent<FlashcardItem>(userId, kind);
+        setItems(data);
+      } else {
+        const data = await ContentService.getContent<QuizItem>(userId, kind);
+        setItems(data);
+      }
+    } catch (err: unknown) {
+      console.error('Failed to load content list', err);
+      setItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const handleRetakeQuiz = (quiz: QuizItem) => {
+    // navigate to quizzes page and pass the saved quiz in location state
+    navigate('/quizzes', { state: { retakeQuiz: quiz } });
+  };
+
   if (loading) {
     return (
       <AmbientBackground>
@@ -453,8 +516,14 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-semibold text-primary mb-6">Learning Statistics</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Stat Card: Summaries */}
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+              {/* Stat Card: Summaries (clickable) */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => openList('summaries')}
+                onKeyDown={(e) => { if (e.key === 'Enter') openList('summaries'); }}
+                className="bg-white/5 rounded-xl p-6 border border-white/10 cursor-pointer hover:shadow-lg transition-all"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <p className="text-muted text-sm mb-2">Summaries Generated</p>
@@ -468,8 +537,14 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Stat Card: Flashcards */}
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+              {/* Stat Card: Flashcards (clickable) */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => openList('flashcards')}
+                onKeyDown={(e) => { if (e.key === 'Enter') openList('flashcards'); }}
+                className="bg-white/5 rounded-xl p-6 border border-white/10 cursor-pointer hover:shadow-lg transition-all"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <p className="text-muted text-sm mb-2">Flashcards Created</p>
@@ -483,8 +558,14 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Stat Card: Quizzes */}
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+              {/* Stat Card: Quizzes (clickable) */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => openList('quizzes')}
+                onKeyDown={(e) => { if (e.key === 'Enter') openList('quizzes'); }}
+                className="bg-white/5 rounded-xl p-6 border border-white/10 cursor-pointer hover:shadow-lg transition-all"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <p className="text-muted text-sm mb-2">Quizzes Taken</p>
@@ -498,8 +579,14 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Stat Card: Documents */}
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+              {/* Stat Card: Documents (clickable) */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => openList('summaries')}
+                onKeyDown={(e) => { if (e.key === 'Enter') openList('summaries'); }}
+                className="bg-white/5 rounded-xl p-6 border border-white/10 cursor-pointer hover:shadow-lg transition-all"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <p className="text-muted text-sm mb-2">Documents Uploaded</p>
@@ -822,6 +909,71 @@ export default function ProfilePage() {
           success={feedbackSuccess}
           isSubmitting={isSubmittingFeedback}
         />
+
+        {/* Simple modal / drawer for listing items */}
+        {listOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setListOpen(false)} />
+            <div className="relative bg-surface rounded-lg w-full max-w-3xl p-6 z-10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  {listKind === 'summaries' ? 'Saved Summaries' : listKind === 'flashcards' ? 'Saved Flashcards' : 'Saved Quizzes'}
+                </h3>
+                <button onClick={() => setListOpen(false)} className="text-sm">Close</button>
+              </div>
+
+              {loadingItems ? (
+                <div>Loading…</div>
+              ) : items.length === 0 ? (
+                <div className="text-sm text-muted">No items yet.</div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-auto">
+                  {items.map(it => {
+                    if (listKind === 'summaries') {
+                      const s = it as SummaryItem;
+                      return (
+                        <div key={s.id} className="p-3 border rounded">
+                          <div className="font-medium">{s.title || 'Summary'}</div>
+                          <div className="text-sm text-muted truncate">{(s.text || '').slice(0, 300)}</div>
+                        </div>
+                      );
+                    }
+
+                    if (listKind === 'flashcards') {
+                      const f = it as FlashcardItem;
+                      return (
+                        <div key={f.id} className="p-3 border rounded">
+                          <div className="font-medium">{f.title || 'Flashcard Deck'}</div>
+                          <div className="text-sm text-muted">{(f.cards || []).length} cards</div>
+                        </div>
+                      );
+                    }
+
+                    // default: quizzes
+                    const q = it as QuizItem;
+                    return (
+                      <div key={q.id} className="p-3 border rounded">
+                        <div className="font-medium">{q.title || 'Quiz'}</div>
+                        <div className="text-sm text-muted">Questions: {(q.questions || []).length}</div>
+                        {typeof q.score === 'number' && (
+                          <div className="text-sm text-primary">Score: {q.score}/{(q.questions || []).length}</div>
+                        )}
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => handleRetakeQuiz(q)}
+                            className="btn-secondary"
+                          >
+                            Retake
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </AmbientBackground>
   );

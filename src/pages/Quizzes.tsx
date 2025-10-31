@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import AmbientBackground from '../components/AmbientBackground';
 import FileUpload from '../components/FileUpload';
 import Button from '../components/Button';
-import SummaryHistory from '../components/SummaryHistory';
+import UploadedFilesHistory from '../components/UploadedFilesHistory';
+import type { Document } from '../lib/firebase/DocumentService';
 import ProgressBar from '../components/ProgressBar';
 import QuizService from '../lib/openai/QuizService';
 import { auth } from '../lib/firebase';
 import type { Summary } from '../lib/firebase/SummaryService';
+import ContentService from '../lib/firebase/ContentService';
 
 type QuizQuestion = {
     question: string;
@@ -38,6 +40,8 @@ export default function QuizzesPage() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState<number[]>([]);
     const [submitted, setSubmitted] = useState(false);
+    const [savingQuiz, setSavingQuiz] = useState(false);
+    const [savedQuizId, setSavedQuizId] = useState<string | null>(null);
 
     const userId = auth.currentUser?.uid || '';
 
@@ -114,6 +118,35 @@ export default function QuizzesPage() {
             setSubmitted(true);
         };
 
+        const handleSaveQuiz = async () => {
+            if (!userId) {
+                setError('Sign in to save quizzes to your profile.');
+                return;
+            }
+            if (!questions) {
+                setError('No quiz to save.');
+                return;
+            }
+
+            try {
+                setSavingQuiz(true);
+                setSavedQuizId(null);
+                        const id = await ContentService.saveContent(userId, 'quizzes', {
+                            title: `Quiz — ${new Date().toLocaleString()}`,
+                            questions,
+                            numQuestions: questions.length,
+                            score,
+                        });
+                setSavedQuizId(id);
+                setError(null);
+            } catch (err) {
+                console.error('Failed to save quiz', err);
+                setError('Failed to save quiz');
+            } finally {
+                setSavingQuiz(false);
+            }
+        };
+
     const score = (() => {
         if (!questions) return 0;
         let s = 0;
@@ -154,9 +187,27 @@ export default function QuizzesPage() {
                             {mode === 'existing' && (
                                 <div>
                                     {userId ? (
-                                        <SummaryHistory userId={userId} onSelectSummary={(s) => setSelectedSummary(s)} />
+                                        <UploadedFilesHistory userId={userId} onSelectDocument={(d: Document) => {
+                                            // select an uploaded document; we can't automatically re-run generation
+                                            // without the raw file object. Store a lightweight selection for now.
+                                            setSelectedSummary(null);
+                                            setError(null);
+                                            // Use the selected file's metadata as a hint in the UI
+                                            const summaryObj = {
+                                                id: d.id,
+                                                userId: d.userId,
+                                                fileName: d.fileName,
+                                                fileHash: d.fileHash,
+                                                fileSize: d.fileSize,
+                                                fileType: d.fileType,
+                                                summaryText: `Selected uploaded file: ${d.fileName} — to re-generate a quiz from the original file, please re-upload it on the Uploads page.`,
+                                                createdAt: d.uploadedAt,
+                                                updatedAt: d.updatedAt,
+                                            };
+                                            setSelectedSummary(summaryObj as Summary);
+                                        }} />
                                     ) : (
-                                        <div className="p-4 bg-yellow-500/10 rounded">Sign in to access your previous notes. You can also paste text or upload a file.</div>
+                                        <div className="p-4 bg-yellow-500/10 rounded">Sign in to access your previous uploads. You can also paste text or upload a file.</div>
                                     )}
                                     {selectedSummary && (
                                         <div className="mt-3 p-3 bg-white/5 rounded text-left">
@@ -213,10 +264,24 @@ export default function QuizzesPage() {
                     {/* Quiz view */}
                     {questions && (
                         <div className="glass-surface p-6">
-                            <div className="mb-3 text-left">
-                                <div className="font-medium">Quiz — {questions.length} questions</div>
-                                <div className="text-sm text-muted">{submitted ? `Score: ${score}/${questions.length}` : 'Answer questions and submit when ready.'}</div>
-                            </div>
+                            <div className="mb-3 flex items-start justify-between">
+                                        <div>
+                                            <div className="font-medium">Quiz — {questions.length} questions</div>
+                                            <div className="text-sm text-muted">{submitted ? `Score: ${score}/${questions.length}` : 'Answer questions and submit when ready.'}</div>
+                                        </div>
+                                        <div>
+                                            {submitted ? (
+                                                userId ? (
+                                                    <button onClick={handleSaveQuiz} disabled={savingQuiz} className="px-4 py-2 bg-green-600 rounded text-white disabled:opacity-50">
+                                                        {savingQuiz ? 'Saving...' : 'Save Quiz'}
+                                                    </button>
+                                                ) : (
+                                                    <div className="text-sm text-muted">Sign in to save this quiz</div>
+                                                )
+                                            ) : null}
+                                            {savedQuizId && <div className="text-sm text-green-300">Saved ✓</div>}
+                                        </div>
+                                    </div>
 
                             {!submitted ? (
                                 <div>
@@ -275,6 +340,16 @@ export default function QuizzesPage() {
                                     ))}
 
                                     <div className="mt-4 text-sm">Final score: <strong>{score}</strong> / {questions.length}</div>
+                                    <div className="mt-3 flex items-center gap-3">
+                                        {userId ? (
+                                            <button onClick={handleSaveQuiz} disabled={savingQuiz} className="px-3 py-1 bg-green-600 rounded text-white disabled:opacity-50">
+                                                {savingQuiz ? 'Saving...' : 'Save Quiz'}
+                                            </button>
+                                        ) : (
+                                            <div className="text-sm text-muted">Sign in to save this quiz</div>
+                                        )}
+                                        {savedQuizId && <div className="text-sm text-green-300">Saved ✓</div>}
+                                    </div>
                                 </div>
                             )}
                         </div>

@@ -47,12 +47,12 @@ export default function SummaryHistory({
   if (summaries.length === 0) {
     return (
       <div className="glass-surface p-6 mb-6">
-        <h3 className="text-lg font-semibold text-primary mb-3">Previous Files</h3>
+        <h3 className="text-lg font-semibold text-primary mb-3">Saved Summaries</h3>
         {error ? (
           <p className="text-red-300 text-sm">Error: {error}</p>
         ) : (
           <p className="text-muted text-sm">
-            {isLoading ? 'Loading your previous summaries...' : 'No previous summaries yet. Upload a file to get started!'}
+            {isLoading ? 'Loading your saved summaries...' : 'No saved summaries yet. Generate a summary to save it here.'}
           </p>
         )}
       </div>
@@ -64,7 +64,7 @@ export default function SummaryHistory({
 
   return (
     <div className="glass-surface p-6 mb-6">
-      <h3 className="text-lg font-semibold text-primary mb-3">Previous Files</h3>
+      <h3 className="text-lg font-semibold text-primary mb-3">Saved Summaries</h3>
       
       <div className="space-y-2">
         {displayedSummaries.map((summary) => (
