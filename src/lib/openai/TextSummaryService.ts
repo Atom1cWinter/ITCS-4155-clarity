@@ -2,7 +2,7 @@
 
 import OpenAIService from './OpenAIService';
 
-interface SummaryOptions {
+export interface SummaryOptions {
   maxTokens?: number;
   temperature?: number;
 }

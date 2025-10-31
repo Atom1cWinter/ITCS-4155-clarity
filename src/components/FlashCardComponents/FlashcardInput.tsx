@@ -1,11 +1,13 @@
 import { useState } from "react";
+import TranscriptionUploader from "../TranscriptionUploader";
+import SummaryHistory from "../SummaryHistory";
 import FileUpload from "../FileUpload";
-import SummaryHistory from "../SummaryHistory"; 
+
 
 
 interface FlashcardInputProps {
   onGenerate: (content: string) => void;
-  onFileUpload: (file: File) => void;
+  onFileUpload?: (file: File) => void;
   loading?: boolean;
   userId?: string | null;
 }
@@ -13,6 +15,7 @@ interface FlashcardInputProps {
 export default function FlashcardInput({ onGenerate, onFileUpload, loading, userId }: FlashcardInputProps) {
   const [mode, setMode] = useState<'file' | 'text' | 'existing'>('file');
   const [inputText, setInputText] = useState("");
+  const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
 
   return (
     <>
@@ -67,7 +70,20 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
 
         {mode === 'file' && (
           <div className="relative">
-            <FileUpload onFileSelect={(file) => onFileUpload(file)} />
+            <div className="mb-4">
+              <FileUpload onFileSelect={(f) => {
+                setDocUploadMessage(null);
+                if (onFileUpload) {
+                  onFileUpload(f);
+                }
+              }} />
+              {docUploadMessage && <div className="mt-2 text-sm text-green-200">{docUploadMessage}</div>}
+            </div>
+
+            <div className="mt-4">
+              <TranscriptionUploader uploadOnly={false} onSummaryGenerated={(s) => onGenerate(s)} />
+            </div>
+
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
                 <div className="text-center">

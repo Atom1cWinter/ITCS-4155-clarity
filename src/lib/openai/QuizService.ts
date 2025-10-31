@@ -1,12 +1,12 @@
 import OpenAIService from './OpenAIService';
 
-interface QuizQuestion {
+export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
 }
 
-interface QuizOptions {
+export interface QuizOptions {
   numQuestions?: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   maxTokens?: number;

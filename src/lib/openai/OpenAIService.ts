@@ -23,8 +23,8 @@ interface OpenAIResponse {
 }
 
 class OpenAIService {
-  private apiKey: string;
-  private baseURL: string;
+  protected apiKey: string;
+  protected baseURL: string;
 
   constructor() {
     this.apiKey = import.meta.env.VITE_OPENAI_API_KEY;

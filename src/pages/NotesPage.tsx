@@ -2,27 +2,29 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import AmbientBackground from '../components/AmbientBackground';
 import TextSummaryService from '../lib/openai/TextSummaryService';
-import FileUpload from '../components/FileUpload';
+import TranscriptionUploader from '../components/TranscriptionUploader';
 import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
-import SummaryHistory from '../components/SummaryHistory';
+import type { Document } from '../lib/firebase/DocumentService';
+// SummaryHistory replaced by documents list to show user's uploaded documents
 import ProgressBar from '../components/ProgressBar';
 import type { Summary } from '../lib/firebase/SummaryService';
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
+import FileUpload from '../components/FileUpload';
 
 export default function NotesPage() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [inputText, setInputText] = useState('');
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useFileUpload, setUseFileUpload] = useState(true);
+  const [mode, setMode] = useState<'existing' | 'upload' | 'text'>('existing');
   const [userId, setUserId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
@@ -37,103 +39,60 @@ export default function NotesPage() {
     return unsubscribe;
   }, []);
 
+  // Load previous files (documents) for the user
+  const [previousFiles, setPreviousFiles] = useState<Document[]>([]);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadPreviousFiles = async () => {
+      try {
+        setLoadingPrevious(true);
+        const docs = await DocumentService.getUserDocuments(userId);
+        // sort newest first
+        docs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        setPreviousFiles(docs);
+      } catch (err) {
+        console.error('NotesPage: failed to load previous files', err);
+      } finally {
+        setLoadingPrevious(false);
+      }
+    };
+
+    loadPreviousFiles();
+  }, [userId, refreshTrigger]);
+
   const handleSelectPreviousSummary = (prevSummary: Summary) => {
     setSummary(prevSummary.summaryText);
-    setSelectedFile(null);
     setInputText('');
     setError(null);
   };
 
-  const handleFileSelect = (file: File) => {
-    setSelectedFile(file);
+  // When the user clicks an uploaded document, try to load its saved summary (if any)
+  const handleSelectDocument = async (doc: Document) => {
     setError(null);
-    setSummary('');
-  };
-
-  const handleSummarizeFromFile = async () => {
-    if (!selectedFile) {
-      setError('Please select a file first');
-      return;
-    }
-
     if (!userId) {
-      setError('User not authenticated');
+      setError('Sign in to load saved summaries');
       return;
     }
-
-    console.log('Starting file summarization for:', selectedFile.name, selectedFile.type, selectedFile.size); // DEBUG
-
-    setIsLoading(true);
-    setProgress(0);
-    setError(null);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 30;
-      });
-    }, 300);
 
     try {
-      const result = await TextSummaryService.summarizeFromFile(selectedFile);
-      setProgress(85);
-      console.log('File summary result:', result); // DEBUG
-      setSummary(result);
-
-      // Save summary to Firestore
-      try {
-        const fileHash = await generateFileHash(selectedFile);
-        console.log('Attempting to save summary for:', selectedFile.name, 'userId:', userId);
-        await SummaryService.saveSummary({
-          userId,
-          fileName: selectedFile.name,
-          fileHash,
-          fileSize: selectedFile.size,
-          fileType: selectedFile.type || 'unknown',
-          summaryText: result,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-        console.log('Summary saved to Firestore successfully');
-        
-        // Also save as a document for the Upload page
-        try {
-          await DocumentService.uploadDocument({
-            userId,
-            fileName: selectedFile.name,
-            fileHash,
-            fileSize: selectedFile.size,
-            fileType: selectedFile.type || 'unknown',
-            uploadedAt: new Date(),
-            updatedAt: new Date(),
-          });
-          console.log('Document saved to Firestore successfully');
-        } catch (docError) {
-          console.error('Error saving document:', docError);
-          // Don't show error - document save is secondary
-        }
-        
-        setProgress(100);
-        // Trigger refresh of summary history
-        setRefreshTrigger(prev => prev + 1);
-      } catch (dbError) {
-        console.error('Error saving summary to Firestore:', dbError);
-        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
-        console.error('Detailed error:', errorMsg);
-        // Show error to user so they know to check Firestore
-        setError(`Note: Summary generated but storage failed. Check browser console: ${errorMsg}`);
+      const existing = await SummaryService.getSummaryByFileHash(userId, doc.fileHash);
+      if (existing) {
+        handleSelectPreviousSummary(existing);
+      } else {
+        setError('No saved summary found for this document. You can upload or transcribe to create one.');
       }
     } catch (err) {
-      console.error('Detailed file summary error:', err); // DEBUG
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(`Failed to generate summary from file: ${errorMessage}`);
-    } finally {
-      clearInterval(progressInterval);
-      setIsLoading(false);
-      setTimeout(() => setProgress(0), 500);
+      console.error('Failed to fetch summary for document:', err);
+      setError('Failed to fetch summary for document');
     }
   };
+
+  // Document deletion removed from NotesPage UI per request (only UploadPage supports delete)
+
+  
 
   const handleSummarizeFromText = async () => {
     if (!inputText.trim()) {
@@ -199,6 +158,157 @@ export default function NotesPage() {
     }
   };
 
+  const handleTranscriptionSummaryGenerated = async (result: string, file: File | null) => {
+    if (!userId) {
+      setError('User not authenticated');
+      return;
+    }
+
+    setIsLoading(true);
+    setProgress(0);
+    setError(null);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
+
+    try {
+      setProgress(85);
+      setSummary(result);
+
+      // Save summary to Firestore
+      try {
+        let fileHash = '';
+        if (file) {
+          fileHash = await generateFileHash(file);
+        } else {
+          fileHash = 'remote-url-' + Date.now();
+        }
+
+        await SummaryService.saveSummary({
+          userId,
+          fileName: file ? file.name : `Transcription ${new Date().toLocaleString()}`,
+          fileHash,
+          fileSize: file ? file.size : result.length,
+          fileType: file ? file.type || 'unknown' : 'remote',
+          summaryText: result,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        // Also save as a document for the Upload page (best-effort)
+        try {
+          if (file) {
+            await DocumentService.uploadDocument({
+              userId,
+              fileName: file.name,
+              fileHash,
+              fileSize: file.size,
+              fileType: file.type || 'unknown',
+              uploadedAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+        } catch (docError) {
+          console.error('Error saving document:', docError);
+        }
+
+        setProgress(100);
+        setRefreshTrigger(prev => prev + 1);
+      } catch (dbError) {
+        console.error('Error saving summary to Firestore:', dbError);
+        const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        setError(`Note: Summary generated but storage failed. Check browser console: ${errorMsg}`);
+      }
+    } catch (err) {
+      console.error('Transcription/summary handling error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to handle transcription summary: ${errorMessage}`);
+    } finally {
+      clearInterval(progressInterval);
+      setIsLoading(false);
+      setTimeout(() => setProgress(0), 500);
+    }
+  };
+
+  // Handle file upload -> auto-generate summary
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+
+    if (!userId) {
+      setDocUploadMessage('Sign in to save documents and summaries');
+    }
+
+    setError(null);
+    setProgress(0);
+    setDocUploadMessage(null);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
+
+    try {
+      const fileHash = await generateFileHash(file);
+      const existingSummary = userId ? await SummaryService.getSummaryByFileHash(userId, fileHash) : null;
+
+      if (existingSummary) {
+        setSummary(existingSummary.summaryText);
+        setDocUploadMessage(`Using existing summary for ${existingSummary.fileName}`);
+      } else {
+        const result = await TextSummaryService.summarizeFromFile(file);
+        setSummary(result);
+
+        if (userId) {
+          try {
+            await SummaryService.saveSummary({
+              userId,
+              fileName: file.name,
+              fileHash,
+              fileSize: file.size,
+              fileType: file.type || 'unknown',
+              summaryText: result,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            await DocumentService.uploadDocument({
+              userId,
+              fileName: file.name,
+              fileHash,
+              fileSize: file.size,
+              fileType: file.type || 'unknown',
+              uploadedAt: new Date(),
+              updatedAt: new Date(),
+            });
+          } catch (dbErr) {
+            console.error('Failed to persist summary/document for uploaded file:', dbErr);
+          }
+        }
+
+        setDocUploadMessage(`Generated summary for ${file.name}`);
+      }
+
+      setRefreshTrigger(prev => prev + 1);
+      setProgress(100);
+    } catch (err) {
+      console.error('Failed to auto-generate summary from uploaded file:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || 'Failed to generate summary from file');
+      setDocUploadMessage('Failed to generate summary');
+    } finally {
+      clearInterval(progressInterval);
+      setTimeout(() => setProgress(0), 500);
+    }
+  };
+
   return (
     <AmbientBackground>
       <ProgressBar 
@@ -237,69 +347,78 @@ export default function NotesPage() {
         {/* Main Content */}
         <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Previous Summaries History */}
-        {userId && (
-          <SummaryHistory userId={userId} onSelectSummary={handleSelectPreviousSummary} refreshTrigger={refreshTrigger} />
-        )}
+        {/* "Your Documents" is shown within the Mode = Existing section below */}
 
-        {/* Mode Toggle */}
+        {/* Mode Toggle (use same style/behavior as Quizzes page) */}
         <div className="glass-surface p-6 mb-6">
-          <div className="flex items-center justify-center space-x-4 mb-4">
-            <button
-              onClick={() => setUseFileUpload(true)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                useFileUpload
-                  ? 'bg-[#3B82F6] text-primary'
-                  : 'bg-white/10 text-white hover:bg-[#3B82F6]'
-              }`}
-            >
-              Upload File
-            </button>
-            <button
-              onClick={() => setUseFileUpload(false)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                !useFileUpload
-                  ? 'bg-[#3B82F6] text-primary'
-                  : 'bg-white/10 text-white hover:bg-[#3B82F6]'
-              }`}
-            >
-              Enter Text
-            </button>
+          <div className="flex gap-3 justify-center mb-4">
+            <button onClick={() => setMode('existing')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='existing' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Use Existing Notes</button>
+            <button onClick={() => setMode('upload')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='upload' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Upload File</button>
+            <button onClick={() => setMode('text')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='text' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Text Input</button>
           </div>
 
-          {useFileUpload ? (
-            <div>
-              <FileUpload onFileSelect={handleFileSelect} />
-              {selectedFile && (
-                <div className="mt-4">
-                  <p className="text-primary mb-2">Selected: {selectedFile.name}</p>
-                  <button
-                    onClick={handleSummarizeFromFile}
-                    disabled={isLoading}
-                    className="w-full bg-[#3B82F6] hover:brightness-110 disabled:opacity-50 text-primary font-semibold py-3 px-6 rounded-lg transition-all"
-                  >
-                    {isLoading ? 'Generating Summary...' : 'Generate Summary from File'}
-                  </button>
+          <div className="space-y-4">
+            {mode === 'existing' && (
+              <div>
+                {userId ? (
+                  <div className="glass-surface p-4 rounded">
+                    {loadingPrevious ? (
+                      <p className="text-muted text-sm">Loading your documents...</p>
+                    ) : previousFiles.length === 0 ? (
+                      <p className="text-muted text-sm">No documents uploaded yet. Upload a file to get started!</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {previousFiles.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between p-3 rounded bg-white/5 hover:bg-white/10">
+                            <button onClick={() => handleSelectDocument(file)} className="text-left flex-1">
+                              <div className="font-medium">{file.fileName}</div>
+                              <div className="text-xs text-muted">{(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.uploadedAt).toLocaleDateString()}</div>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-yellow-500/10 rounded">Sign in to access your previous notes. You can also paste text or upload a file.</div>
+                )}
+              </div>
+            )}
+
+            {mode === 'upload' && (
+              <div>
+                <div className="mb-4">
+                  <FileUpload onFileSelect={(f) => { handleFileUpload(f); setDocUploadMessage(null); }} />
+                  {docUploadMessage && (
+                    <div className="mt-3">
+                      <div className="text-primary mb-2">{docUploadMessage}</div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Enter your text here to summarize..."
-                className="w-full h-32 p-4 bg-white/5 border border-white/20 rounded-lg resize-none focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent text-primary placeholder-text-subtle"
-              />
-              <button
-                onClick={handleSummarizeFromText}
-                disabled={isLoading || !inputText.trim()}
-                className="w-full mt-4 bg-[#3B82F6] hover:brightness-110 disabled:opacity-50 text-primary font-semibold py-3 px-6 rounded-lg transition-all"
-              >
-                {isLoading ? 'Generating Summary...' : 'Generate Summary from Text'}
-              </button>
-            </div>
-          )}
+
+                <div className="mt-4">
+                  <TranscriptionUploader uploadOnly={false} onSummaryGenerated={handleTranscriptionSummaryGenerated} onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} />
+                </div>
+              </div>
+            )}
+
+            {mode === 'text' && (
+              <div>
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Paste notes or text here..."
+                  className="w-full p-3 rounded bg-white/5 min-h-[140px]"
+                />
+                <div className="flex gap-3 justify-center items-center mt-3">
+                  <button onClick={handleSummarizeFromText} className="px-4 py-2 bg-[#3B82F6] rounded text-white disabled:opacity-50" disabled={isLoading || !inputText.trim()}>{isLoading ? 'Generating...' : 'Generate Summary'}</button>
+                </div>
+              </div>
+            )}
+
+            {isLoading && <div className="mt-4 text-sm">Generating summary — this may take a few seconds...</div>}
+            {error && <div className="mt-4 text-sm text-red-300">Error: {error}</div>}
+          </div>
         </div>
 
         {/* Error Display */}

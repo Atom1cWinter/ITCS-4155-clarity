@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import AmbientBackground from '../components/AmbientBackground';
 import FileUpload from '../components/FileUpload';
+import TranscriptionUploader from '../components/TranscriptionUploader';
 import ProgressBar from '../components/ProgressBar';
-import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
+import type { Document } from '../lib/firebase/DocumentService';
 import { generateFileHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
-import type { Summary } from '../lib/firebase/SummaryService';
+// type Summary no longer used by UploadPage; documents are displayed instead
 
 export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -15,7 +16,7 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [previousFiles, setPreviousFiles] = useState<Summary[]>([]);
+  const [previousFiles, setPreviousFiles] = useState<Document[]>([]);
   const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -36,8 +37,8 @@ export default function UploadPage() {
     const loadPreviousFiles = async () => {
       try {
         setLoadingPrevious(true);
-        const summaries = await SummaryService.getUserSummaries(userId);
-        setPreviousFiles(summaries);
+        const documents = await DocumentService.getUserDocuments(userId);
+        setPreviousFiles(documents);
       } catch (err) {
         console.error('Error loading previous files:', err);
       } finally {
@@ -79,11 +80,11 @@ export default function UploadPage() {
     }, 300);
 
     try {
-      // Check for duplicate
+      // Check for duplicate in documents
       const fileHash = await generateFileHash(selectedFile);
       setProgress(20);
-      const existing = await SummaryService.getSummaryByFileHash(userId, fileHash);
-      
+      const existing = await DocumentService.getDocumentByFileHash(userId, fileHash);
+
       if (existing) {
         setError(`File already uploaded: "${existing.fileName}"`);
         setIsLoading(false);
@@ -94,7 +95,7 @@ export default function UploadPage() {
 
       setProgress(50);
 
-      // Upload document
+      // Upload document metadata
       await DocumentService.uploadDocument({
         userId,
         fileName: selectedFile.name,
@@ -127,7 +128,7 @@ export default function UploadPage() {
 
     try {
       setIsLoading(true);
-      await SummaryService.deleteSummary(summaryId);
+      await DocumentService.deleteDocument(summaryId);
       setSuccessMessage(`"${fileName}" deleted`);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
@@ -185,7 +186,7 @@ export default function UploadPage() {
                           {file.fileName}
                         </div>
                         <div className="text-xs text-muted mt-1">
-                          {(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.createdAt).toLocaleDateString()} {new Date(file.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.uploadedAt).toLocaleDateString()} {new Date(file.uploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                       <button
@@ -237,6 +238,12 @@ export default function UploadPage() {
                 <p className="text-red-200 text-sm">{error}</p>
               </div>
             )}
+          </div>
+
+          {/* Transcription Uploader (audio/video) */}
+          <div className="glass-surface p-6">
+            <h2 className="text-xl font-semibold text-primary mb-4">Transcribe Audio / Video</h2>
+            <TranscriptionUploader uploadOnly={true} onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} />
           </div>
         </div>
       </div>

@@ -1,11 +1,11 @@
 import OpenAIService from './OpenAIService';
 
-interface Flashcard {
+export interface Flashcard {
   front: string;
   back: string;
 }
 
-interface FlashcardOptions {
+export interface FlashcardOptions {
   numCards?: number;
   style?: 'short' | 'detailed';
   maxTokens?: number;
