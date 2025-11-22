@@ -69,7 +69,8 @@ export default function FlashcardSingleView ({flashcards, onBack}: FlashcardSing
                 {showAnswer ? flashcards[currentIndex].back : flashcards[currentIndex].front}
             </p>
             </div>
-                
+            
+            {/* Right arrow */}
             <button
                 onClick={handleNextCard}
                 disabled={currentIndex === flashcards.length - 1}

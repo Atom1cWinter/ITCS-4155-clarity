@@ -10,6 +10,8 @@ import TranscriptionUploader from "../components/TranscriptionUploader";
 import FileUpload from "../components/FileUpload";
 import ProgressBar from "../components/ProgressBar";
 import { auth } from "../lib/firebase";
+import QuizResultService from "../lib/firebase/QuizResultService";
+import type { QuizResult } from "../lib/firebase/QuizResultService";
 import AmbientBackground from "../components/AmbientBackground";
 
 
@@ -17,7 +19,7 @@ export default function FlashcardsPage() {
   const [flashcardView, setFlashcardView] = useState(false);
   const [flashcards, setFlashcards] = useState<{ front: string; back: string }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'existing' | 'upload' | 'text'>('existing');
+  const [mode, setMode] = useState<'existing' | 'upload' | 'text'| 'quiz'>('existing');
   const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<Summary | null>(null);
   const [pastedText, setPastedText] = useState('');
@@ -25,6 +27,9 @@ export default function FlashcardsPage() {
   const [styleOption, setStyleOption] = useState<'short'|'detailed'>('short');
   const [userId, setUserId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [selectedQuiz, setSelectedQuiz] = useState<QuizResult | null>(null);
 
     useEffect(() => {
       const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -58,6 +63,25 @@ export default function FlashcardsPage() {
 
       loadPreviousFiles();
     }, [userId, refreshTrigger]);
+
+    // Load recent quiz results for the user
+    useEffect(() => {
+  if (!userId) return;
+
+  const loadQuizzes = async () => {
+    try {
+      setLoadingQuizzes(true);
+      const results = await QuizResultService.getRecentQuizResults(userId, 5);
+      setQuizResults(results);
+    } catch (err) {
+      console.error("FlashcardsPage: failed to load recent quizzes", err);
+    } finally {
+      setLoadingQuizzes(false);
+    }
+  };
+
+      loadQuizzes();
+    }, [userId]);
 
     // When selecting a document, try to fetch a saved summary and select it (generate on demand)
     const handleSelectDocument = async (doc: Document) => {
@@ -180,6 +204,52 @@ export default function FlashcardsPage() {
     }
   };
 
+  // Handle generate from quiz result
+  const handleGenerateFromQuiz = async (quiz: QuizResult) => {
+  try {
+    setLoading(true);
+    setProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 30;
+      });
+    }, 300);
+
+    const incorrect = quiz.incorrectQuestions ?? [];
+
+    const content =
+      incorrect.length > 0
+        ? incorrect
+            .map(
+              (q, index) =>
+                `Question ${index + 1}: ${q.question}
+Correct answer: ${q.correctAnswer}
+${q.explanation ? `Explanation: ${q.explanation}` : ""}`
+            )
+            .join("\n\n")
+        : `Quiz title: ${quiz.title}
+Score: ${quiz.score}%
+Topics: ${quiz.topics.join(", ")}
+
+Create flashcards that focus on the most important concepts and typical mistakes for these topics.`;
+
+    await handleGenerate(content);
+    setSelectedQuiz(quiz);
+    setFlashcardView(true);
+
+    setProgress(100);
+    clearInterval(progressInterval);
+  } catch (err) {
+    console.error("FlashcardsPage: handleGenerateFromQuiz error", err);
+    alert("Failed to generate flashcards from quiz");
+  } finally {
+    setLoading(false);
+    setTimeout(() => setProgress(0), 500);
+  }
+};
+
   // Handle back (from list view)
   const handleBack = () => {
     setFlashcardView(false);
@@ -217,6 +287,7 @@ export default function FlashcardsPage() {
                   <button onClick={() => setMode('existing')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='existing' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Use Existing Notes</button>
                   <button onClick={() => setMode('upload')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='upload' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Upload File</button>
                   <button onClick={() => setMode('text')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='text' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>Text Input</button>
+                  <button onClick={() => setMode('quiz')} className={`px-4 py-2 rounded-lg font-medium transition-colors ${mode==='text' ? 'bg-[#3B82F6] text-white' : 'bg-white/10 hover:bg-[#3B82F6] text-white'}`}>From Quiz</button>
                 </div>
 
                 <div className="space-y-4">
@@ -298,6 +369,71 @@ export default function FlashcardsPage() {
                       </div>
                     </div>
                   )}
+
+                  {mode === "quiz" && (
+                    <div>
+                      {userId ? (
+                        <div className="glass-surface p-4 rounded">
+                          {loadingQuizzes ? (
+                            <p className="text-muted text-sm">Loading your recent quizzes...</p>
+                          ) : quizResults.length === 0 ? (
+                            <p className="text-muted text-sm">
+                              No quizzes taken yet. Complete a quiz to see it here.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {quizResults.map((quiz) => (
+                                <button
+                                  key={quiz.id}
+                                  onClick={() => handleGenerateFromQuiz(quiz)}
+                                  className="w-full text-left flex items-center justify-between p-3 rounded bg-white/5 hover:bg-white/10"
+                                >
+                                  <div>
+                                    <div className="font-medium">{quiz.title}</div>
+                                    <div className="text-xs text-muted">
+                                      {new Date(quiz.takenAt).toLocaleString()} • Score{" "}
+                                      {quiz.score}% • {quiz.correctQuestions}/
+                                      {quiz.totalQuestions} correct
+                                    </div>
+                                    {quiz.topics?.length > 0 && (
+                                      <div className="text-xs text-muted mt-1">
+                                        Topics: {quiz.topics.join(", ")}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-primary">
+                                    Generate flashcards →
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-yellow-500/10 rounded">
+                          Sign in to see quizzes taken and generate flashcards from them.
+                        </div>
+                      )}
+
+                      {selectedQuiz && (
+                        <div className="mt-3 p-3 bg-white/5 rounded text-left">
+                          <div className="font-medium">
+                            Selected quiz: {selectedQuiz.title}
+                          </div>
+                          <div className="text-xs text-muted mt-1">
+                            Score {selectedQuiz.score}% • Taken{" "}
+                            {new Date(selectedQuiz.takenAt).toLocaleString()}
+                          </div>
+                          {selectedQuiz.topics?.length > 0 && (
+                            <div className="text-xs text-muted mt-1">
+                              Topics: {selectedQuiz.topics.join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
               </div>
             </div>

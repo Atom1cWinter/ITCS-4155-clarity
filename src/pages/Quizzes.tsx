@@ -10,6 +10,9 @@ import QuizService from '../lib/openai/QuizService';
 import { auth } from '../lib/firebase';
 import type { Summary } from '../lib/firebase/SummaryService';
 import FileUpload from '../components/FileUpload';
+import QuizResultService, {
+  type NewQuizResultInput,
+} from "../lib/firebase/QuizResultService";
 
 type QuizQuestion = {
     question: string;
@@ -213,17 +216,53 @@ export default function QuizzesPage() {
         });
     };
 
-        const handleSubmitQuiz = () => {
-            // Prevent submitting if not all questions answered
+        const handleSubmitQuiz = async () => {
             if (!questions) return;
-            const allAnswered = questions.every((_, i) => typeof answers[i] === 'number');
+
+            const allAnswered = questions.every((_, i) => typeof answers[i] === "number");
             if (!allAnswered) {
-                setError('Please answer all questions before submitting.');
+                setError("Please answer all questions before submitting.");
                 return;
             }
 
             setError(null);
             setSubmitted(true);
+
+            // If user isn't logged in, just show results without saving
+            if (!userId) {
+                console.warn("User not logged in — quiz won't be saved.");
+                return;
+            }
+
+            const correctQuestions = score;
+
+            // Build data for Firestore
+            const resultData: NewQuizResultInput = {
+                title: selectedSummary?.fileName ?? "Ad-hoc Quiz",
+                score: Math.round((correctQuestions / questions.length) * 100),
+                totalQuestions: questions.length,
+                correctQuestions,
+                topics: [], // TODO: add topic tags if you later extend QuizQuestion
+                incorrectQuestions: questions
+                .map((q, idx) => {
+                if (answers[idx] === q.correctAnswer) return null;
+
+                return {
+                    question: q.question,
+                    correctAnswer: q.options[q.correctAnswer],
+                    // omit explanation entirely for now
+                };
+                })
+                .filter((item): item is { question: string; correctAnswer: string } => item !== null),
+            };
+
+            try {
+                await QuizResultService.saveQuizResult(userId, resultData);
+                console.log("Quiz result saved!");
+            } catch (err: unknown) {
+                // 👆 typed as unknown to avoid "any" lint error
+                console.error("Failed to save quiz result", err);
+            }
         };
 
     const score = (() => {

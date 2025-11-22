@@ -13,7 +13,7 @@ interface FlashcardInputProps {
 }
 
 export default function FlashcardInput({ onGenerate, onFileUpload, loading, userId }: FlashcardInputProps) {
-  const [mode, setMode] = useState<'file' | 'text' | 'existing'>('file');
+  const [mode, setMode] = useState<'file' | 'text' | 'existing'| 'quiz'>('file');
   const [inputText, setInputText] = useState("");
   const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
 
@@ -46,6 +46,13 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
           >
             Text Input
           </button>
+          <button
+          onClick={() => setMode('quiz')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              mode === 'text' ? "bg-[#3B82F6] text-white" : "bg-white/10 text-white hover:bg-[#3B82F6]"
+            }`}>
+              Quiz Upload
+            </button>
         </div>
 
         {/* Input areas */}
@@ -116,6 +123,24 @@ export default function FlashcardInput({ onGenerate, onFileUpload, loading, user
                 "Generate Flashcards from Text"
               )}
             </button>
+          </div>
+        )}
+        {mode === 'quiz' && (
+          <div className="mt-4">
+            <SummaryHistory
+              userId={userId!}
+              onSelectSummary={(summary) => onGenerate(summary.summaryText || "")}
+            />
+
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
+                <div className="text-center">
+                  <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-white text-sm">Generating flashcards...</p>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
       </div>
