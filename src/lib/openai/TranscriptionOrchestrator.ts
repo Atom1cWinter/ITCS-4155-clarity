@@ -6,6 +6,8 @@ import type { QuizOptions } from './QuizService';
 import TextSummaryService from './TextSummaryService';
 import FlashcardService from './FlashcardService';
 import QuizService from './QuizService';
+import AudioTranscriptionService from './AudioTranscriptionService';
+import AudioSummaryWithQuotesService from './AudioSummaryWithQuotesService';
 
 type TranscriptionResult = string | Record<string, unknown> | WhisperNormalized;
 
@@ -70,6 +72,28 @@ class TranscriptionOrchestrator {
     const t = await WhisperService.transcribeFromUrl(url, whisperOptions);
     const text = extractTextFromTranscription(t as TranscriptionResult);
     return QuizService.generateQuiz(text, quizOptions);
+  }
+
+  /**
+   * Transcribe audio and generate a summary with quotes from the transcript.
+   * This new method returns both the summary and the full transcript with segments.
+   */
+  async transcribeAndSummarizeWithQuotesFromFile(
+    file: File,
+    whisperOptions: WhisperOptions = {},
+    summaryOptions: SummaryOptions = {}
+  ) {
+    const transcription = await AudioTranscriptionService.transcribeFileWithSegments(file, whisperOptions);
+    return AudioSummaryWithQuotesService.generateSummaryWithQuotes(transcription, summaryOptions);
+  }
+
+  async transcribeAndSummarizeWithQuotesFromUrl(
+    url: string,
+    whisperOptions: WhisperOptions = {},
+    summaryOptions: SummaryOptions = {}
+  ) {
+    const transcription = await AudioTranscriptionService.transcribeUrlWithSegments(url, whisperOptions);
+    return AudioSummaryWithQuotesService.generateSummaryWithQuotes(transcription, summaryOptions);
   }
 }
 

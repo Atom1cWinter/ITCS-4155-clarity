@@ -629,17 +629,18 @@ export default function NotesPage() {
             )}
 
             {mode === 'upload' && (
-              <div>
-                <div className="mb-4">
+              <div className="space-y-6">
+                <div className="glass-surface p-6 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4 text-white">Upload Document</h3>
                   <FileUpload onFileSelect={(f) => { handleFileUpload(f); setDocUploadMessage(null); }} />
                   {docUploadMessage && (
-                    <div className="mt-3">
-                      <div className="text-primary mb-2">{docUploadMessage}</div>
+                    <div className="mt-3 p-3 bg-green-600/20 border border-green-500/30 rounded-lg text-green-200 text-sm">
+                      {docUploadMessage}
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4">
+                <div>
                   <TranscriptionUploader uploadOnly={false} onSummaryGenerated={handleTranscriptionSummaryGenerated} onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} />
                 </div>
               </div>

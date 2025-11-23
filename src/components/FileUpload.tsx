@@ -4,12 +4,14 @@ interface FileUploadProps {
   onFileSelect: (file: File) => void;
   acceptedTypes?: string;
   maxSize?: number; // in MB
+  supportedFormats?: string;
 }
 
 export default function FileUpload({ 
   onFileSelect, 
   acceptedTypes = ".txt,.pdf,.html,.jpg,.jpeg,.png,.gif",
-  maxSize = 10 
+  maxSize = 10,
+  supportedFormats = "TXT, PDF, HTML, Images"
 }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export default function FileUpload({
         </button>
         
         <p className="text-white/40 text-sm mt-2">
-          Supports: TXT, PDF, HTML, Images (Max {maxSize}MB)
+          Supports: {supportedFormats} (Max {maxSize}MB)
         </p>
       </div>
       

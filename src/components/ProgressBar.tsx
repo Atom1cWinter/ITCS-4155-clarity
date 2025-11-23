@@ -8,8 +8,8 @@ export default function ProgressBar({ progress, isVisible, label }: ProgressBarP
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-      <div className="glass-surface p-8 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl max-w-md w-full mx-4">
+    <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/40">
+      <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl border border-white/30 shadow-2xl max-w-md w-full mx-4">
         <div className="space-y-4">
           {label && (
             <p className="text-center text-primary font-semibold">{label}</p>
