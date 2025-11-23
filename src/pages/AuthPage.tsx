@@ -124,8 +124,8 @@ export default function AuthPage() {
         // Sign in with email and password
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         console.log('Login successful:', userCredential.user);
-        // Redirect to notes page after successful login
-        navigate('/notes');
+        // Redirect to home page after successful login
+        navigate('/home');
       } else {
         // Create new user with email and password
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -155,8 +155,8 @@ export default function AuthPage() {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       console.log('Google sign-in successful:', userCredential.user);
-      // Redirect to notes page after successful Google sign-in
-      navigate('/notes');
+      // Redirect to home page after successful Google sign-in
+      navigate('/home');
     } catch (error) {
       console.error('Google sign-in error:', error);
       const errorCode = (error as { code?: string })?.code || 'unknown';

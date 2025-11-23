@@ -44,7 +44,7 @@ const NavBar: React.FC<NavbarProps> = () => {
             <div className="max-w-7xl mx-auto px-6 md:px-8 py-8 flex justify-between items-center pointer-events-auto">
                 {/* Blue Clarity Logo */}
                 <Link 
-                  to="/notes" 
+                  to="/home" 
                   className="transition-opacity hover:opacity-80"
                   aria-label="Clarity Home"
                 >
