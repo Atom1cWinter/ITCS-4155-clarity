@@ -7,15 +7,19 @@ import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
 import DocumentService from '../lib/firebase/DocumentService';
+import CourseService, { type Course } from '../lib/firebase/CourseService';
 import type { Document } from '../lib/firebase/DocumentService';
-// SummaryHistory replaced by documents list to show user's uploaded documents
-import ProgressBar from '../components/ProgressBar';
 import type { Summary } from '../lib/firebase/SummaryService';
+import ProgressBar from '../components/ProgressBar';
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
 import FileUpload from '../components/FileUpload';
+import CourseModal from '../components/CourseModal';
+import CourseSelector from '../components/CourseSelector';
+import CourseViewer from '../components/CourseViewer';
 
 export default function NotesPage() {
+  // Original state
   const [inputText, setInputText] = useState('');
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +29,17 @@ export default function NotesPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [progress, setProgress] = useState(0);
   const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
+
+  // Course organization state
+  const [viewMode, setViewMode] = useState<'all' | 'byCourse'>('all');
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [selectorItemId, setSelectorItemId] = useState<string | null>(null);
+  const [selectorItemName, setSelectorItemName] = useState('');
+  const [selectorItemType, setSelectorItemType] = useState<'summary' | 'document'>('summary');
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
@@ -61,6 +76,25 @@ export default function NotesPage() {
     };
 
     loadPreviousFiles();
+  }, [userId, refreshTrigger]);
+
+  // Load courses for the user
+  useEffect(() => {
+    if (!userId) {
+      setCourses([]);
+      return;
+    }
+
+    const loadCourses = async () => {
+      try {
+        const userCourses = await CourseService.getUserCourses(userId);
+        setCourses(userCourses);
+      } catch (err) {
+        console.error('Failed to load courses:', err);
+      }
+    };
+
+    loadCourses();
   }, [userId, refreshTrigger]);
 
   const handleSelectPreviousSummary = (prevSummary: Summary) => {
@@ -309,6 +343,43 @@ export default function NotesPage() {
     }
   };
 
+  // Course handling functions
+  const handleOpenCourseModal = () => {
+    setIsCourseModalOpen(true);
+  };
+
+  const handleCourseCreated = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleOpenAssignSelector = (itemId: string, itemName: string, itemType: 'summary' | 'document') => {
+    setSelectorItemId(itemId);
+    setSelectorItemName(itemName);
+    setSelectorItemType(itemType);
+    setIsSelectorOpen(true);
+  };
+
+  const handleAssignCourse = async (courseId: string) => {
+    if (!selectorItemId) return;
+
+    setIsAssigning(true);
+    try {
+      await CourseService.assignItemToCourse(
+        userId!,
+        selectorItemId,
+        selectorItemType,
+        courseId
+      );
+      setIsSelectorOpen(false);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Error assigning item to course:', err);
+      setError('Action failed. Please try again later.');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   return (
     <AmbientBackground>
       <ProgressBar 
@@ -347,6 +418,103 @@ export default function NotesPage() {
         {/* Main Content */}
         <div className="max-w-4xl mx-auto space-y-6">
 
+        {/* View Mode Toggle - All Notes vs By Course */}
+        {userId && (
+          <div className="glass-surface p-4 rounded-lg flex gap-3 justify-center flex-wrap">
+            <button
+              onClick={() => setViewMode('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                viewMode === 'all'
+                  ? 'bg-[#3B82F6] text-white'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              All Notes
+            </button>
+            {courses.length > 0 && (
+              <button
+                onClick={() => setViewMode('byCourse')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'byCourse'
+                    ? 'bg-[#3B82F6] text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+              >
+                By Course
+              </button>
+            )}
+            <button
+              onClick={handleOpenCourseModal}
+              className="px-4 py-2 bg-green-500/20 text-green-200 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
+            >
+              + Add Course
+            </button>
+          </div>
+        )}
+
+        {/* Course Not Found - Empty State */}
+        {userId && courses.length === 0 && viewMode === 'byCourse' && (
+          <div className="glass-surface p-12 rounded-2xl text-center">
+            <svg className="w-16 h-16 mx-auto mb-4 text-muted opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <p className="text-lg text-muted mb-2">You haven't organized your notes yet.</p>
+            <p className="text-text-subtle text-sm mb-6">Create a course or topic to begin organizing your study materials.</p>
+            <button
+              onClick={handleOpenCourseModal}
+              className="px-6 py-2 bg-[#3B82F6] text-white rounded-lg hover:brightness-110 transition-all font-medium"
+            >
+              + Add Course or Topic
+            </button>
+          </div>
+        )}
+
+        {/* By Course View */}
+        {viewMode === 'byCourse' && courses.length > 0 && !selectedCourseId && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {courses.map((course) => (
+              <button
+                key={course.id}
+                onClick={() => setSelectedCourseId(course.id)}
+                className="glass-surface p-6 rounded-2xl text-left hover:bg-white/15 transition-all"
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: course.color || '#3B82F6' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xl font-semibold text-primary mb-1">
+                      {course.name}
+                    </h3>
+                    {course.description && (
+                      <p className="text-sm text-muted truncate mb-3">
+                        {course.description}
+                      </p>
+                    )}
+                    <p className="text-xs text-text-subtle">
+                      {course.itemCount} item{course.itemCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Course Viewer */}
+        {viewMode === 'byCourse' && selectedCourseId && (
+          <div>
+            <CourseViewer
+              courseId={selectedCourseId}
+              onBack={() => setSelectedCourseId(null)}
+            />
+          </div>
+        )}
+
+        {/* All Notes View - Original Functionality */}
+        {viewMode === 'all' && (
+          <>
         {/* "Your Documents" is shown within the Mode = Existing section below */}
 
         {/* Mode Toggle (use same style/behavior as Quizzes page) */}
@@ -374,6 +542,18 @@ export default function NotesPage() {
                               <div className="font-medium">{file.fileName}</div>
                               <div className="text-xs text-muted">{(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.uploadedAt).toLocaleDateString()}</div>
                             </button>
+                            {userId && courses.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAssignSelector(file.id!, file.fileName, 'document');
+                                }}
+                                className="ml-2 px-3 py-1 text-xs bg-blue-500/20 text-blue-200 rounded hover:bg-blue-500/30 transition-colors"
+                                title="Assign to course"
+                              >
+                                📌
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -421,62 +601,84 @@ export default function NotesPage() {
           </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-6">
-            <p className="text-red-200">{error}</p>
-          </div>
-        )}
+            {/* Error Display - inside all view */}
+            {error && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-6">
+                <p className="text-red-200">{error}</p>
+              </div>
+            )}
 
-        {/* Summary Display */}
-        {summary && (
-          <div className="glass-surface p-6">
-            <h2 className="text-2xl font-semibold text-primary mb-4">Summary</h2>
-            <div className="bg-white/5 rounded-lg p-4 markdown-content">
-              <ReactMarkdown
-                components={{
-                  h1: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
-                    <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />
-                  ),
-                  h2: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
-                    <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />
-                  ),
-                  h3: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
-                    <h3 className="text-xl font-bold mb-2 mt-4" {...props} />
-                  ),
-                  p: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLParagraphElement>>) => (
-                    <p className="mb-3 text-muted" {...props} />
-                  ),
-                  strong: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
-                    <strong className="font-bold text-primary" {...props} />
-                  ),
-                  em: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
-                    <em className="italic text-muted" {...props} />
-                  ),
-                  ul: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLUListElement>>) => (
-                    <ul className="list-disc list-inside mb-3 text-muted" {...props} />
-                  ),
-                  ol: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLOListElement>>) => (
-                    <ol className="list-decimal list-inside mb-3 text-muted" {...props} />
-                  ),
-                  li: (props: React.PropsWithChildren<React.LiHTMLAttributes<HTMLLIElement>>) => (
-                    <li className="mb-1" {...props} />
-                  ),
-                  code: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
-                    <code className="bg-white/10 px-2 py-1 rounded text-sm font-mono" {...props} />
-                  ),
-                  pre: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLPreElement>>) => (
-                    <pre className="bg-white/10 p-3 rounded mb-3 overflow-x-auto" {...props} />
-                  ),
-                }}
-              >
-                {summary}
-              </ReactMarkdown>
-            </div>
-          </div>
+            {/* Summary Display - inside all view */}
+            {summary && (
+              <div className="glass-surface p-6">
+                <h2 className="text-2xl font-semibold text-primary mb-4">Summary</h2>
+                <div className="bg-white/5 rounded-lg p-4 markdown-content">
+                  <ReactMarkdown
+                    components={{
+                      h1: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                        <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />
+                      ),
+                      h2: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                        <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />
+                      ),
+                      h3: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLHeadingElement>>) => (
+                        <h3 className="text-xl font-bold mb-2 mt-4" {...props} />
+                      ),
+                      p: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLParagraphElement>>) => (
+                        <p className="mb-3 text-muted" {...props} />
+                      ),
+                      strong: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                        <strong className="font-bold text-primary" {...props} />
+                      ),
+                      em: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                        <em className="italic text-muted" {...props} />
+                      ),
+                      ul: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLUListElement>>) => (
+                        <ul className="list-disc list-inside mb-3 text-muted" {...props} />
+                      ),
+                      ol: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLOListElement>>) => (
+                        <ol className="list-decimal list-inside mb-3 text-muted" {...props} />
+                      ),
+                      li: (props: React.PropsWithChildren<React.LiHTMLAttributes<HTMLLIElement>>) => (
+                        <li className="mb-1" {...props} />
+                      ),
+                      code: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLElement>>) => (
+                        <code className="bg-white/10 px-2 py-1 rounded text-sm font-mono" {...props} />
+                      ),
+                      pre: (props: React.PropsWithChildren<React.HTMLAttributes<HTMLPreElement>>) => (
+                        <pre className="bg-white/10 p-3 rounded mb-3 overflow-x-auto" {...props} />
+                      ),
+                    }}
+                  >
+                    {summary}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
+
+    {/* Modals */}
+    {userId && (
+      <>
+        <CourseModal
+          isOpen={isCourseModalOpen}
+          onClose={() => setIsCourseModalOpen(false)}
+          onCourseCreated={handleCourseCreated}
+          userId={userId}
+        />
+        <CourseSelector
+          isOpen={isSelectorOpen}
+          onClose={() => setIsSelectorOpen(false)}
+          onAssign={handleAssignCourse}
+          userId={userId}
+          itemName={selectorItemName}
+          isSubmitting={isAssigning}
+        />
+      </>
+    )}
     </AmbientBackground>
   );
 }
