@@ -17,6 +17,9 @@ import FileUpload from '../components/FileUpload';
 import CourseModal from '../components/CourseModal';
 import CourseSelector from '../components/CourseSelector';
 import CourseViewer from '../components/CourseViewer';
+import SearchBar from '../components/SearchBar';
+import HighlightedText from '../components/HighlightedText';
+import { searchItems } from '../lib/SearchService';
 
 export default function NotesPage() {
   // Original state
@@ -40,6 +43,10 @@ export default function NotesPage() {
   const [selectorItemName, setSelectorItemName] = useState('');
   const [selectorItemType, setSelectorItemType] = useState<'summary' | 'document'>('summary');
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Debug mode - set to true when you need to debug
   const DEBUG_MODE = false;
@@ -380,6 +387,40 @@ export default function NotesPage() {
     }
   };
 
+  // Search handler
+  const handleSearchChange = (term: string) => {
+    setSearchTerm(term);
+    setSearchError(null);
+  };
+
+  // Get filtered results
+  const getFilteredResults = () => {
+    try {
+      const allSummaries = previousFiles
+        .filter(doc => doc.id)
+        .map(doc => ({
+          id: doc.id!,
+          fileName: doc.fileName,
+          fileHash: doc.fileHash,
+          fileSize: doc.fileSize,
+          fileType: doc.fileType,
+          userId: doc.userId,
+          summaryText: '', // Documents don't have summary text in this context
+          createdAt: doc.uploadedAt,
+          updatedAt: doc.updatedAt,
+        }));
+
+      const filteredDocs = previousFiles.filter(doc => doc.id) as (Document & { id: string })[];
+
+      const results = searchItems(searchTerm, allSummaries, filteredDocs);
+      return results;
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchError('Search failed. Please check your connection and try again.');
+      return { summaries: [], documents: [] };
+    }
+  };
+
   return (
     <AmbientBackground>
       <ProgressBar 
@@ -515,6 +556,13 @@ export default function NotesPage() {
         {/* All Notes View - Original Functionality */}
         {viewMode === 'all' && (
           <>
+        {/* Search Bar */}
+        <SearchBar
+          searchTerm={searchTerm}
+          onSearchChange={handleSearchChange}
+          error={searchError}
+        />
+
         {/* "Your Documents" is shown within the Mode = Existing section below */}
 
         {/* Mode Toggle (use same style/behavior as Quizzes page) */}
@@ -536,26 +584,41 @@ export default function NotesPage() {
                       <p className="text-muted text-sm">No documents uploaded yet. Upload a file to get started!</p>
                     ) : (
                       <div className="space-y-2">
-                        {previousFiles.map((file) => (
-                          <div key={file.id} className="flex items-center justify-between p-3 rounded bg-white/5 hover:bg-white/10">
-                            <button onClick={() => handleSelectDocument(file)} className="text-left flex-1">
-                              <div className="font-medium">{file.fileName}</div>
-                              <div className="text-xs text-muted">{(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.uploadedAt).toLocaleDateString()}</div>
-                            </button>
-                            {userId && courses.length > 0 && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenAssignSelector(file.id!, file.fileName, 'document');
-                                }}
-                                className="ml-2 px-3 py-1 text-xs bg-blue-500/20 text-blue-200 rounded hover:bg-blue-500/30 transition-colors"
-                                title="Assign to course"
-                              >
-                                📌
+                        {(() => {
+                          const filtered = searchTerm ? getFilteredResults() : { summaries: [], documents: previousFiles };
+                          const documentsToShow = searchTerm ? filtered.documents : previousFiles;
+
+                          if (searchTerm && documentsToShow.length === 0) {
+                            return (
+                              <div className="text-center py-8">
+                                <p className="text-muted">No results found for '<strong>{searchTerm}</strong>'. Try a different keyword.</p>
+                              </div>
+                            );
+                          }
+
+                          return documentsToShow.map((file) => (
+                            <div key={file.id} className="flex items-center justify-between p-3 rounded bg-white/5 hover:bg-white/10">
+                              <button onClick={() => handleSelectDocument(file)} className="text-left flex-1">
+                                <div className="font-medium">
+                                  <HighlightedText text={file.fileName} searchTerm={searchTerm} />
+                                </div>
+                                <div className="text-xs text-muted">{(file.fileSize / 1024).toFixed(2)} KB • {new Date(file.uploadedAt).toLocaleDateString()}</div>
                               </button>
-                            )}
-                          </div>
-                        ))}
+                              {userId && courses.length > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenAssignSelector(file.id!, file.fileName, 'document');
+                                  }}
+                                  className="ml-2 px-3 py-1 text-xs bg-blue-500/20 text-blue-200 rounded hover:bg-blue-500/30 transition-colors"
+                                  title="Assign to course"
+                                >
+                                  📌
+                                </button>
+                              )}
+                            </div>
+                          ));
+                        })()}
                       </div>
                     )}
                   </div>
