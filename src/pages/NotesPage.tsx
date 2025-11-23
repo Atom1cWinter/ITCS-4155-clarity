@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import AmbientBackground from '../components/AmbientBackground';
 import TextSummaryService from '../lib/openai/TextSummaryService';
-import TranscriptionUploader from '../components/TranscriptionUploader';
 import DebugInfo from '../components/DebugInfo';
 import SimpleTest from '../components/SimpleTest';
 import SummaryService from '../lib/firebase/SummaryService';
@@ -13,12 +12,12 @@ import type { Summary } from '../lib/firebase/SummaryService';
 import ProgressBar from '../components/ProgressBar';
 import { generateFileHash, generateTextHash } from '../lib/firebase/FileHashService';
 import { auth } from '../lib/firebase';
-import FileUpload from '../components/FileUpload';
 import CourseModal from '../components/CourseModal';
 import CourseSelector from '../components/CourseSelector';
 import CourseViewer from '../components/CourseViewer';
 import SearchBar from '../components/SearchBar';
 import HighlightedText from '../components/HighlightedText';
+import UnifiedUploadArea from '../components/UnifiedUploadArea';
 import { searchItems } from '../lib/SearchService';
 
 export default function NotesPage() {
@@ -31,7 +30,6 @@ export default function NotesPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [docUploadMessage, setDocUploadMessage] = useState<string | null>(null);
 
   // Course organization state
   const [viewMode, setViewMode] = useState<'all' | 'byCourse'>('all');
@@ -276,78 +274,11 @@ export default function NotesPage() {
     }
   };
 
-  // Handle file upload -> auto-generate summary
-  const handleFileUpload = async (file: File) => {
-    if (!file) return;
-
-    if (!userId) {
-      setDocUploadMessage('Sign in to save documents and summaries');
-    }
-
-    setError(null);
-    setProgress(0);
-    setDocUploadMessage(null);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 30;
-      });
-    }, 300);
-
-    try {
-      const fileHash = await generateFileHash(file);
-      const existingSummary = userId ? await SummaryService.getSummaryByFileHash(userId, fileHash) : null;
-
-      if (existingSummary) {
-        setSummary(existingSummary.summaryText);
-        setDocUploadMessage(`Using existing summary for ${existingSummary.fileName}`);
-      } else {
-        const result = await TextSummaryService.summarizeFromFile(file);
-        setSummary(result);
-
-        if (userId) {
-          try {
-            await SummaryService.saveSummary({
-              userId,
-              fileName: file.name,
-              fileHash,
-              fileSize: file.size,
-              fileType: file.type || 'unknown',
-              summaryText: result,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-
-            await DocumentService.uploadDocument({
-              userId,
-              fileName: file.name,
-              fileHash,
-              fileSize: file.size,
-              fileType: file.type || 'unknown',
-              uploadedAt: new Date(),
-              updatedAt: new Date(),
-            });
-          } catch (dbErr) {
-            console.error('Failed to persist summary/document for uploaded file:', dbErr);
-          }
-        }
-
-        setDocUploadMessage(`Generated summary for ${file.name}`);
-      }
-
-      setRefreshTrigger(prev => prev + 1);
-      setProgress(100);
-    } catch (err) {
-      console.error('Failed to auto-generate summary from uploaded file:', err);
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message || 'Failed to generate summary from file');
-      setDocUploadMessage('Failed to generate summary');
-    } finally {
-      clearInterval(progressInterval);
-      setTimeout(() => setProgress(0), 500);
-    }
+  // Wrapper for UnifiedUploadArea callback signature
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleUnifiedSummaryGenerated = (summary: string, _fileName: string, _isAudio: boolean) => {
+    // _fileName and _isAudio are passed by UnifiedUploadArea but we use the existing handler for compatibility
+    handleTranscriptionSummaryGenerated(summary, null);
   };
 
   // Course handling functions
@@ -629,20 +560,13 @@ export default function NotesPage() {
             )}
 
             {mode === 'upload' && (
-              <div className="space-y-6">
-                <div className="glass-surface p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-4 text-white">Upload Document</h3>
-                  <FileUpload onFileSelect={(f) => { handleFileUpload(f); setDocUploadMessage(null); }} />
-                  {docUploadMessage && (
-                    <div className="mt-3 p-3 bg-green-600/20 border border-green-500/30 rounded-lg text-green-200 text-sm">
-                      {docUploadMessage}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <TranscriptionUploader uploadOnly={false} onSummaryGenerated={handleTranscriptionSummaryGenerated} onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} />
-                </div>
+              <div className="glass-surface p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-white">Upload Files</h3>
+                <p className="text-white/70 text-sm mb-4">Upload documents (PDF, text, images) or audio files (MP3, WAV, etc.) - we'll automatically process them appropriately</p>
+                <UnifiedUploadArea 
+                  userId={userId}
+                  onSummaryGenerated={handleUnifiedSummaryGenerated}
+                />
               </div>
             )}
 
