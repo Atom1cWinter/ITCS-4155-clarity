@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import NotesPage from '../../pages/NotesPage';
+import type { Document } from '../../lib/firebase/DocumentService';
+
+const getUserDocumentsMock = vi.fn<[], Promise<(Document & { id: string })[]>>();
+const searchItemsMock = vi.fn();
 
 // Mock components
 vi.mock('../../components/AmbientBackground', () => ({
@@ -67,7 +72,7 @@ vi.mock('../../lib/firebase/SummaryService', () => ({
 vi.mock('../../lib/firebase/DocumentService', () => ({
   default: {
     uploadDocument: vi.fn(async () => 'doc1'),
-    getUserDocuments: vi.fn(async () => []),
+    getUserDocuments: () => getUserDocumentsMock(),
   },
 }));
 
@@ -95,11 +100,19 @@ vi.mock('../../components/CourseViewer', () => ({
 }));
 
 vi.mock('../../components/SearchBar', () => ({
-  default: () => <input data-testid="search-bar" placeholder="Search" />,
+  default: ({ searchTerm, onSearchChange }: { searchTerm: string; onSearchChange: (term: string) => void }) => (
+    <input
+      data-testid="search-bar"
+      placeholder="Search notes and materials…"
+      value={searchTerm}
+      onChange={(e) => onSearchChange(e.target.value)}
+    />
+  ),
 }));
 
 vi.mock('../../lib/SearchService', () => ({
-  searchItems: vi.fn(async () => []),
+  searchItems: (...args: unknown[]) => searchItemsMock(...args),
+  highlightSearchTerm: (text: string) => [{ type: 'text', value: text }],
 }));
 
 function renderWithRouter(component: React.ReactElement) {
@@ -109,6 +122,11 @@ function renderWithRouter(component: React.ReactElement) {
 describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getUserDocumentsMock.mockResolvedValue([]);
+    searchItemsMock.mockImplementation((_term: string, summaries, documents) => ({
+      summaries,
+      documents,
+    }));
   });
 
   describe('Page Rendering', () => {
@@ -217,6 +235,56 @@ describe('NotesPage', () => {
     it('has search functionality', () => {
       renderWithRouter(<NotesPage />);
       expect(screen.getByTestId('search-bar')).toBeInTheDocument();
+    });
+
+    it('filters documents when a search term is entered', async () => {
+      const user = userEvent.setup();
+      const mockDocs: (Document & { id: string })[] = [
+        {
+          id: '1',
+          userId: 'test-user-123',
+          fileName: 'Physics Lecture Notes.pdf',
+          fileHash: 'hash-1',
+          fileSize: 1024,
+          fileType: 'application/pdf',
+          uploadedAt: new Date('2024-01-01'),
+          updatedAt: new Date('2024-01-02'),
+        },
+        {
+          id: '2',
+          userId: 'test-user-123',
+          fileName: 'Calculus Review.docx',
+          fileHash: 'hash-2',
+          fileSize: 2048,
+          fileType: 'application/docx',
+          uploadedAt: new Date('2024-01-03'),
+          updatedAt: new Date('2024-01-03'),
+        },
+      ];
+
+      getUserDocumentsMock.mockResolvedValueOnce(mockDocs);
+      searchItemsMock.mockImplementation((_term: string, _summaries, documents: (Document & { id: string })[]) => {
+        const normalized = _term.toLowerCase();
+        return {
+          summaries: [],
+          documents: documents.filter((doc) => doc.fileName.toLowerCase().includes(normalized)),
+        };
+      });
+
+      renderWithRouter(<NotesPage />);
+
+      await screen.findByText(/Physics Lecture Notes\.pdf/);
+      await screen.findByText(/Calculus Review\.docx/);
+
+      const searchInput = screen.getByTestId('search-bar');
+      await user.type(searchInput, 'Physics');
+
+      expect(
+        screen.getAllByText((content, element) => (element?.textContent || '').includes('Physics Lecture Notes.pdf'))
+      ).not.toHaveLength(0);
+      expect(
+        screen.queryAllByText((content, element) => (element?.textContent || '').includes('Calculus Review.docx'))
+      ).toHaveLength(0);
     });
   });
 
