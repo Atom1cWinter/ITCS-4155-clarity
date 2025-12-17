@@ -1,5 +1,5 @@
 # Clarity - Class Project
-
+![Homepage](public/img.png "Homepage")
 A simple React + TypeScript web application built for our class assignment. This project demonstrates modern web development with Firebase authentication and basic note-taking features.
 
 ## 🎯 Project Overview
